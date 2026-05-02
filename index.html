@@ -819,20 +819,40 @@
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = 'en-US';
                     utterance.rate = 0.9;
+                    utterance.pitch = 1;
                     utterance.onend = function() {
                         isPlaying = false;
                         updateAudioButton();
                     };
-                    utterance.onerror = function() {
+                    utterance.onerror = function(event) {
                         isPlaying = false;
                         updateAudioButton();
+                        let errorMsg = '语音播放失败';
+                        switch(event.error) {
+                            case 'not-allowed':
+                                errorMsg = '需要先点击页面才能播放语音';
+                                break;
+                            case 'synthesis-unavailable':
+                                errorMsg = '当前浏览器不支持语音合成，请尝试使用Chrome浏览器';
+                                break;
+                            case 'voice-unavailable':
+                                errorMsg = '语音资源不可用，请尝试使用Chrome浏览器';
+                                break;
+                        }
+                        alert(errorMsg);
                     };
-                    window.speechSynthesis.speak(utterance);
-                    isPlaying = true;
-                    updateAudioButton();
+                    try {
+                        window.speechSynthesis.speak(utterance);
+                        isPlaying = true;
+                        updateAudioButton();
+                    } catch(e) {
+                        isPlaying = false;
+                        updateAudioButton();
+                        alert('语音播放失败，请尝试使用Chrome浏览器');
+                    }
                 }
             } else {
-                alert('您的浏览器不支持语音功能');
+                alert('您的浏览器不支持语音功能，请尝试使用Chrome浏览器');
             }
         }
 
