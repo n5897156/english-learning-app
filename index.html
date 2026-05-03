@@ -5,442 +5,96 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>英语学习助手</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f5f5f5;
-            min-height: 100vh;
-        }
-
-        .app-container {
-            max-width: 480px;
-            margin: 0 auto;
-            background: white;
-            min-height: 100vh;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        .nav-tabs {
-            display: flex;
-            background: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .nav-tab {
-            flex: 1;
-            padding: 16px 12px;
-            text-align: center;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            color: #6c757d;
-            transition: all 0.3s;
-            position: relative;
-        }
-
-        .nav-tab.active {
-            color: #667eea;
-        }
-
-        .nav-tab.active::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 40px;
-            height: 3px;
-            background: #667eea;
-            border-radius: 2px;
-        }
-
-        .content {
-            padding: 16px;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-        }
-
-        .card {
-            background: white;
-            border-radius: 16px;
-            padding: 24px 16px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-        }
-
-        .card-icon {
-            width: 48px;
-            height: 48px;
-            margin: 0 auto 12px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-        }
-
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #212529;
-            margin-bottom: 4px;
-        }
-
-        .card-subtitle {
-            font-size: 12px;
-            color: #6c757d;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-
-        .btn-primary:hover {
-            opacity: 0.9;
-        }
-
-        .btn-secondary {
-            background: #e9ecef;
-            color: #495057;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .btn-secondary:hover {
-            background: #dee2e6;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            color: #495057;
-            margin-bottom: 8px;
-        }
-
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ced4da;
-            border-radius: 8px;
-            font-size: 14px;
-            font-family: inherit;
-        }
-
-        .form-group textarea {
-            min-height: 120px;
-            resize: vertical;
-        }
-
-        .material-item {
-            background: white;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-
-        .material-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #212529;
-        }
-
-        .material-content {
-            font-size: 14px;
-            color: #6c757d;
-            line-height: 1.6;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .material-meta {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .chip {
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 4px 10px;
-            border-radius: 16px;
-            font-size: 12px;
-        }
-
-        .vocab-card {
-            background: white;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-
-        .vocab-word {
-            font-size: 20px;
-            font-weight: 600;
-            color: #212529;
-        }
-
-        .vocab-phonetic {
-            font-size: 14px;
-            color: #6c757d;
-            margin-bottom: 8px;
-        }
-
-        .vocab-meaning {
-            font-size: 16px;
-            color: #495057;
-        }
-
-        .vocab-example {
-            font-size: 14px;
-            color: #6c757d;
-            font-style: italic;
-            margin-top: 8px;
-        }
-
-        .fill-blank-question {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-
-        .question-text {
-            font-size: 16px;
-            line-height: 1.6;
-            margin-bottom: 16px;
-        }
-
-        .question-input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.2s;
-        }
-
-        .question-input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .result-card {
-            background: #d4edda;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 16px;
-            text-align: center;
-        }
-
-        .result-card.incorrect {
-            background: #f8d7da;
-        }
-
-        .result-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-
-        .result-word {
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        .score-display {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 12px;
-            padding: 24px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .score-title {
-            font-size: 18px;
-            margin-bottom: 8px;
-        }
-
-        .score-value {
-            font-size: 36px;
-            font-weight: 700;
-        }
-
-        .review-word {
-            font-size: 28px;
-            font-weight: 600;
-            text-align: center;
-            margin-bottom: 8px;
-        }
-
-        .review-meaning {
-            font-size: 18px;
-            text-align: center;
-            color: #6c757d;
-            margin-bottom: 24px;
-        }
-
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 16px;
-            padding: 24px;
-            width: 100%;
-            max-width: 400px;
-        }
-
-        .modal-title {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 20px;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 24px;
-        }
-
-        .modal-actions button {
-            flex: 1;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #6c757d;
-        }
-
-        .empty-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-
-        .search-bar {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #ced4da;
-            border-radius: 8px;
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
-
-        .search-bar:focus {
-            outline: none;
-            border-color: #667eea;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+        .app-container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
+        .header h1 { font-size: 24px; font-weight: 600; }
+        .nav-tabs { display: flex; background: #f8f9fa; border-bottom: 1px solid #dee2e6; }
+        .nav-tab { flex: 1; padding: 16px 12px; text-align: center; cursor        .nav-tab { flex: 1; padding: 16px 12px; text-align: center; cursor  l 0        .nav-tab { flex: 1; pad    .nav-tab.active { color: #667eea; }
+        .nav-tab.active::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 40px; height: 3px; background: #667eea; border-radius: 2px; }
+        .content { padding: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .card { background: white; border-radius: 16px; padding: 24px 16px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); cursor: pointer; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        .card-icon { font-size: 40px; margin-bottom: 12px; }
+        .card-title { font-size: 16px; font-weight: 600; color: #333; }
+        .card-subtitle { font-size: 14px; color: #6c757d; margin-top: 4px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px 24px; border-radius: 12px; font-size: 16px; font-weight: 500; cursor: pointer; transition: opacity 0.2s; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-secondary { background: #f8f9fa; color: #333; border: 1px solid #dee2e6; padding: 14px 24px; border-radius: 12px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .btn-secondary:hover { background: #e9ecef; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; border-radius: 16px; padding: 24px; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto; }
+        .modal-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; text-align: center; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 16px; resize: none; }
+        .material-item { background: #f8f9fa; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: background 0.2s; }
+        .material-item:hover { background: #e9ecef; }
+        .material-title { font-weight: 600; margin-bottom: 4px; }
+        .material-content { font-size: 14px; color: #6c757d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .material-category { display: inline-block; background: #e3f2fd; color: #1976d2; font-size: 12px; padding: 4px 12px; border-radius: 20px; margin-top: 8px; }
+        .empty-state { text-align: center; padding: 40px 20px; color: #6c757d; }
+        .empty-icon { font-size: 48px; margin-bottom: 16px; }
+        .vocab-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 20px; }
+        .vocab-word { font-size: 32px; font-weight: 600; margin-bottom: 8px; }
+        .vocab-phonetic { opacity: 0.9; margin-bottom: 8px; }
+        .vocab-meaning { font-size: 18px; }
+        .fill-blank-question { background: #f8f9fa; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .question-input { width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 16px; margin-top: 12px; }
+        .question-input:focus { outline: none; border-color: #667eea; }
+        .result-card { background: #d4edda; color: #155724; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 16px; }
+        .result-card.incorrect { background: #f8d7da; color: #721c24; }
+        .result-title { font-size: 20px; font-weight: 600; }
+        .result-word { font-size: 24px; margin-top: 12px; }
+        .score-display { text-align: center; padding: 24px; }
+        .score-title { font-size: 20px; font-weight: 600; color: #333; }
+        .score-value { font-size: 48px; font-weight: 600; color: #667eea; margin-top: 16px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .delete-btn { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 8px; }
     </style>
 </head>
 <body>
     <div class="app-container">
         <div class="header">
-            <h1>英语学习助手</h1>
+            <h1>📚 英语学习助手</h1>
         </div>
-        
         <div class="nav-tabs">
-            <div class="nav-tab active" data-tab="home">首页</div>
-            <div class="nav-tab" data-tab="materials">资料</div>
-            <div class="nav-tab" data-tab="vocab">词汇</div>
-            <div class="nav-tab" data-tab="review">复习</div>
+            <div class="nav-tab active" onclick="navigateTo('home')">首页</div>
+            <div class="nav-tab" onclick="navigateTo('materials')">资料</div>
+            <div class="nav-tab" onclick="navigateTo('vocab')">词汇</div>
+            <div class="nav-tab" onclick="navigateTo('review')">复习</div>
         </div>
-
         <div class="content">
-            <!-- 首页 -->
-            <div id="tab-home" class="tab-content">
+            <div id="tab-home" class="tab-content active">
                 <div class="grid">
                     <div class="card" onclick="navigateTo('materials')">
-                        <div class="card-icon" style="background: #e3f2fd; color: #1976d2;">📚</div>
+                        <div class="card-icon">📚</div>
                         <div class="card-title">学习资料</div>
                         <div class="card-subtitle" id="home-material-count">0 篇文章</div>
                     </div>
                     <div class="card" onclick="navigateTo('vocab')">
-                        <div class="card-icon" style="background: #e8f5e9; color: #388e3c;">📖</div>
+                        <div class="card-icon">📖</div>
                         <div class="card-title">词汇库</div>
                         <div class="card-subtitle" id="home-vocab-count">0 个单词</div>
                     </div>
                     <div class="card" onclick="navigateTo('review')">
-                        <div class="card-icon" style="background: #fff3e0; color: #f57c00;">🔄</div>
+                        <div class="card-icon">🔄</div>
                         <div class="card-title">今日复习</div>
                         <div class="card-subtitle" id="home-review-count">0 个待复习</div>
                     </div>
                     <div class="card" onclick="showAddMaterialModal()">
-                        <div class="card-icon" style="background: #fce4ec; color: #c2185b;">➕</div>
+                        <div class="card-icon">➕</div>
                         <div class="card-title">添加资料</div>
                         <div class="card-subtitle">导入新内容</div>
                     </div>
                 </div>
             </div>
-
-            <!-- 学习资料 -->
-            <div id="tab-materials" class="tab-content" style="display: none;">
-                <button class="btn-secondary" style="width: 100%; margin-bottom: 16px;" onclick="showAddMaterialModal()">
-                    + 添加新资料
-                </button>
+            <div id="tab-materials" class="tab-content">
+                <button class="btn-secondary" style="width: 100%; margin-bottom: 12px;" onclick="showAddMaterialModal()">+ 添加新资料</button>
+                <button class="btn-primary" style="width: 100%; margin-bottom: 16px;" onclick="syncMaterials()">🔄 同步资料</button>
                 <div id="materials-list">
                     <div class="empty-state">
                         <div class="empty-icon">📝</div>
@@ -449,13 +103,9 @@
                     </div>
                 </div>
             </div>
-
-            <!-- 词汇库 -->
-            <div id="tab-vocab" class="tab-content" style="display: none;">
-                <input type="text" class="search-bar" placeholder="搜索单词..." id="vocab-search" onkeyup="searchVocab()">
-                <button class="btn-secondary" style="width: 100%; margin-bottom: 16px;" onclick="showAddVocabModal()">
-                    + 添加单词
-                </button>
+            <div id="tab-vocab" class="tab-content">
+                <button class="btn-secondary" style="width: 100%; margin-bottom: 16px;" onclick="showAddVocabModal()">+ 添加单词</button>
+                <input type="text" placeholder="搜索单词..." id="vocab-search" onkeyup="filterVocab()" style="width: 100%; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 16px;">
                 <div id="vocab-list">
                     <div class="empty-state">
                         <div class="empty-icon">📖</div>
@@ -464,21 +114,17 @@
                     </div>
                 </div>
             </div>
-
-            <!-- 复习 -->
-            <div id="tab-review" class="tab-content" style="display: none;">
+            <div id="tab-review" class="tab-content">
                 <div id="review-content">
                     <div class="empty-state">
-                        <div class="empty-icon">🎉</div>
-                        <div>暂无待复习的单词</div>
-                        <div style="font-size: 14px; margin-top: 8px;">所有单词都已复习完毕！</div>
+                        <div class="empty-icon">🔄</div>
+                        <div>暂无待复习单词</div>
+                        <div style="font-size: 14px; margin-top: 8px;">添加单词后会自动生成复习计划</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- 添加资料弹窗 -->
     <div id="add-material-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <div class="modal-title">添加学习资料</div>
@@ -487,328 +133,148 @@
                 <input type="text" id="material-title" placeholder="输入标题">
             </div>
             <div class="form-group">
-                <label>内容</label>
-                <textarea id="material-content" placeholder="输入英文内容"></textarea>
-            </div>
-            <div class="form-group">
                 <label>分类</label>
-                <select id="material-category" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ced4da;">
-                    <option value="默认">默认</option>
-                    <option value="新闻">新闻</option>
+                <select id="material-category">
                     <option value="文章">文章</option>
+                    <option value="新闻">新闻</option>
                     <option value="对话">对话</option>
+                    <option value="每日推送">每日推送</option>
                 </select>
             </div>
-            <div class="modal-actions">
-                <button class="btn-secondary" onclick="closeModal('add-material-modal')">取消</button>
-                <button class="btn-primary" onclick="addMaterial()">保存</button>
+            <div class="form-group">
+                <label>内容</label>
+                <textarea id="material-content" placeholder="输入英文内容..." rows="6"></textarea>
             </div>
+            <button class="btn-primary" style="width: 100%;" onclick="addMaterial()">添加</button>
+            <button class="btn-secondary" style="width: 100%; margin-top: 12px;" onclick="closeModal('add-material-modal')">取消</button>
         </div>
     </div>
-
-    <!-- 添加单词弹窗 -->
     <div id="add-vocab-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <div class="modal-title">添加单词</div>
             <div class="form-group">
-                <label>单词</label>
+                <label>英文单词</label>
                 <input type="text" id="vocab-word" placeholder="输入英文单词">
             </div>
             <div class="form-group">
-                <label>释义</label>
+                <label>音标</label>
+                <input type="text" id="vocab-phonetic" placeholder="输入音标（可选）">
+            </div>
+            <div class="form-group">
+                <label>中文释义</label>
                 <input type="text" id="vocab-meaning" placeholder="输入中文释义">
             </div>
             <div class="form-group">
-                <label>音标（可选）</label>
-                <input type="text" id="vocab-phonetic" placeholder="输入音标">
+                <label>例句</label>
+                <textarea id="vocab-example" placeholder="输入例句（可选）" rows="3"></textarea>
             </div>
-            <div class="form-group">
-                <label>例句（可选）</label>
-                <input type="text" id="vocab-example" placeholder="输入例句">
-            </div>
-            <div class="modal-actions">
-                <button class="btn-secondary" onclick="closeModal('add-vocab-modal')">取消</button>
-                <button class="btn-primary" onclick="addVocab()">保存</button>
-            </div>
+            <button class="btn-primary" style="width: 100%;" onclick="addVocab()">添加</button>
+            <button class="btn-secondary" style="width: 100%; margin-top: 12px;" onclick="closeModal('add-vocab-modal')">取消</button>
         </div>
     </div>
-
-    <!-- 填空练习弹窗 -->
-    <div id="fill-blank-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
-            <div class="modal-title">填空练习</div>
-            <div id="fill-blank-content"></div>
+    <div id="material-detail-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 90%;">
+            <div class="modal-title">资料详情</div>
+            <div id="material-detail-content"></div>
         </div>
     </div>
-
     <script>
         let materials = [];
         let vocabList = [];
+        let isPlaying = false;
         let currentReviewIndex = 0;
         let reviewAnswers = [];
         let correctCount = 0;
-        let isPlaying = false;
+        let currentMaterial = null;
 
-        function initData() {
-            const savedMaterials = localStorage.getItem('materials');
-            const savedVocab = localStorage.getItem('vocab');
+        function init() {
+            materials = JSON.parse(localStorage.getItem('materials') || '[]');
+            vocabList = JSON.parse(localStorage.getItem('vocab') || '[]');
             
-            if (savedMaterials) {
-                materials = JSON.parse(savedMaterials);
-            } else {
-                materials = [
-                    {
-                        id: 1,
-                        title: 'Daily English',
-                        content: 'The best way to learn English is to practice every day. Reading, writing, listening, and speaking are all important skills. Consistent practice will help you improve quickly.',
-                        category: '文章',
-                        createdAt: new Date().toISOString()
-                    }
-                ];
+            if (materials.length === 0) {
+                materials = [{ id: 1, title: 'Daily English', content: 'The best way to learn English is to practice every day. Reading, writing, listening, and speaking are all important skills. Consistent practice will help you improve quickly.', category: '文章', createdAt: new Date().toISOString() }];
                 localStorage.setItem('materials', JSON.stringify(materials));
             }
-
-            if (savedVocab) {
-                vocabList = JSON.parse(savedVocab);
-            } else {
-                vocabList = [
-                    { id: 1, word: 'practice', meaning: '练习', phonetic: '/ˈpræktɪs/', example: 'Practice makes perfect.', reviewLevel: 0, nextReview: new Date().toISOString(), isCustom: false },
-                    { id: 2, word: 'consistent', meaning: '一致的，持续的', phonetic: '/kənˈsɪstənt/', example: 'Be consistent in your studies.', reviewLevel: 0, nextReview: new Date().toISOString(), isCustom: false },
-                    { id: 3, word: 'improve', meaning: '改善，提高', phonetic: '/ɪmˈpruːv/', example: 'You will improve with practice.', reviewLevel: 0, nextReview: new Date().toISOString(), isCustom: false },
-                    { id: 4, word: 'important', meaning: '重要的', phonetic: '/ɪmˈpɔːtnt/', example: 'English is very important.', reviewLevel: 0, nextReview: new Date().toISOString(), isCustom: false },
-                    { id: 5, word: 'skill', meaning: '技能，技巧', phonetic: '/skɪl/', example: 'Listening is a key skill.', reviewLevel: 0, nextReview: new Date().toISOString(), isCustom: false }
-                ];
+            
+            if (vocabList.length === 0) {
+                vocabList = [{ id: 1, word: 'practice', phonetic: '/ˈpræktɪs/', meaning: '练习，实践', example: 'Practice makes perfect.', reviewLevel: 1, nextReview: new Date().toISOString() }, { id: 2, word: 'consistent', phonetic: '/kənˈsɪstən/', meaning: '一致的，持续的', example: 'Be consistent in your learning.', reviewLevel: 1, nextReview: new Date().toISOString() }];
                 localStorage.setItem('vocab', JSON.stringify(vocabList));
             }
+
+            updateHomeCounts();
+            renderMaterials();
+            renderVocab();
         }
 
         function navigateTo(tab) {
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            const index = ['home', 'materials', 'vocab', 'review'].indexOf(tab) + 1;
+            document.querySelector('.nav-tab:nth-child(' + index + ')').classList.add('active');
+            document.getElementById('tab-' + tab).style.display = 'block';
             
-            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-            document.getElementById(`tab-${tab}`).style.display = 'block';
-
-            if (tab === 'materials') renderMaterials();
-            else if (tab === 'vocab') renderVocab();
-            else if (tab === 'review') renderReview();
+            if (tab === 'review') {
+                renderReview();
+            }
         }
 
-        function renderHomeStats() {
-            document.getElementById('home-material-count').textContent = `${materials.length} 篇文章`;
-            document.getElementById('home-vocab-count').textContent = `${vocabList.length} 个单词`;
+        function updateHomeCounts() {
+            document.getElementById('home-material-count').textContent = materials.length + ' 篇文章';
+            document.getElementById('home-vocab-count').textContent = vocabList.length + ' 个单词';
             const reviewCount = vocabList.filter(v => new Date(v.nextReview) <= new Date()).length;
-            document.getElementById('home-review-count').textContent = `${reviewCount} 个待复习`;
+            document.getElementById('home-review-count').textContent = reviewCount + ' 个待复习';
+        }
+
+        function showAddMaterialModal() {
+            document.getElementById('add-material-modal').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function addMaterial() {
+            const title = document.getElementById('material-title').value.trim();
+            const category = document.getElementById('material-category').value;
+            const content = document.getElementById('material-content').value.trim();
+
+            if (!title || !content) {
+                alert('请填写标题和内容');
+                return;
+            }
+
+            materials.push({ id: Date.now(), title, category, content, createdAt: new Date().toISOString() });
+            localStorage.setItem('materials', JSON.stringify(materials));
+            closeModal('add-material-modal');
+            renderMaterials();
+            updateHomeCounts();
+            alert('添加成功！');
+
+            document.getElementById('material-title').value = '';
+            document.getElementById('material-content').value = '';
         }
 
         function renderMaterials() {
             const list = document.getElementById('materials-list');
             if (materials.length === 0) {
-                list.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">📝</div>
-                        <div>暂无学习资料</div>
-                        <div style="font-size: 14px; margin-top: 8px;">点击上方按钮添加</div>
-                    </div>
-                `;
+                list.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><div>暂无学习资料</div><div style="font-size: 14px; margin-top: 8px;">点击上方按钮添加</div></div>';
                 return;
             }
 
-            list.innerHTML = materials.map(m => `
-                <div class="material-item" onclick="showMaterialDetail(${m.id})">
-                    <div class="material-title">${m.title}</div>
-                    <div class="material-content">${m.content}</div>
-                    <div class="material-meta">
-                        <span class="chip">${m.category}</span>
-                        <span class="chip">${formatDate(m.createdAt)}</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderVocab() {
-            const list = document.getElementById('vocab-list');
-            if (vocabList.length === 0) {
-                list.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">📖</div>
-                        <div>暂无单词</div>
-                        <div style="font-size: 14px; margin-top: 8px;">点击上方按钮添加</div>
-                    </div>
-                `;
-                return;
-            }
-
-            list.innerHTML = vocabList.map(v => `
-                <div class="vocab-card">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <div class="vocab-word">${v.word}</div>
-                            ${v.phonetic ? `<div class="vocab-phonetic">${v.phonetic}</div>` : ''}
-                            <div class="vocab-meaning">${v.meaning}</div>
-                            ${v.example ? `<div class="vocab-example">例：${v.example}</div>` : ''}
-                        </div>
-                        <button onclick="deleteVocab(${v.id})" style="background: #f8d7da; border: none; padding: 8px; border-radius: 8px; color: #c2185b;">删除</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function searchVocab() {
-            const query = document.getElementById('vocab-search').value.toLowerCase();
-            const list = document.getElementById('vocab-list');
-            
-            if (query === '') {
-                renderVocab();
-                return;
-            }
-
-            const filtered = vocabList.filter(v => 
-                v.word.toLowerCase().includes(query) || v.meaning.includes(query)
-            );
-
-            if (filtered.length === 0) {
-                list.innerHTML = `<div class="empty-state">未找到匹配的单词</div>`;
-                return;
-            }
-
-            list.innerHTML = filtered.map(v => `
-                <div class="vocab-card">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <div class="vocab-word">${v.word}</div>
-                            ${v.phonetic ? `<div class="vocab-phonetic">${v.phonetic}</div>` : ''}
-                            <div class="vocab-meaning">${v.meaning}</div>
-                            ${v.example ? `<div class="vocab-example">例：${v.example}</div>` : ''}
-                        </div>
-                        <button onclick="deleteVocab(${v.id})" style="background: #f8d7da; border: none; padding: 8px; border-radius: 8px; color: #c2185b;">删除</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderReview() {
-            const reviewQueue = vocabList.filter(v => new Date(v.nextReview) <= new Date());
-            
-            if (reviewQueue.length === 0) {
-                document.getElementById('review-content').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🎉</div>
-                        <div>暂无待复习的单词</div>
-                        <div style="font-size: 14px; margin-top: 8px;">所有单词都已复习完毕！</div>
-                    </div>
-                `;
-                return;
-            }
-
-            currentReviewIndex = 0;
-            reviewAnswers = [];
-            correctCount = 0;
-            showReviewWord(reviewQueue[currentReviewIndex]);
-        }
-
-        function showReviewWord(vocab) {
-            document.getElementById('review-content').innerHTML = `
-                <div class="vocab-card">
-                    <div class="review-word">${vocab.meaning}</div>
-                    <div class="review-meaning">请写出对应的英文单词</div>
-                </div>
-                <input type="text" class="question-input" placeholder="输入单词..." id="review-input" onkeyup="(e) => e.key === 'Enter' && checkReviewAnswer()">
-                <button class="btn-primary" style="width: 100%; margin-top: 12px;" onclick="checkReviewAnswer()">确认</button>
-                <div style="text-align: center; margin-top: 16px; color: #6c757d; font-size: 14px;">
-                    进度: ${currentReviewIndex + 1} / ${vocabList.filter(v => new Date(v.nextReview) <= new Date()).length}
-                </div>
-            `;
-            document.getElementById('review-input').focus();
-        }
-
-        function checkReviewAnswer() {
-            const reviewQueue = vocabList.filter(v => new Date(v.nextReview) <= new Date());
-            const userAnswer = document.getElementById('review-input').value.toLowerCase().trim();
-            const correctAnswer = reviewQueue[currentReviewIndex].word.toLowerCase();
-            const isCorrect = userAnswer === correctAnswer;
-
-            reviewAnswers.push({ vocab: reviewQueue[currentReviewIndex], userAnswer, isCorrect });
-            if (isCorrect) correctCount++;
-
-            const vocabIndex = vocabList.findIndex(v => v.id === reviewQueue[currentReviewIndex].id);
-            if (vocabIndex !== -1) {
-                vocabList[vocabIndex].reviewLevel = isCorrect ? vocabList[vocabIndex].reviewLevel + 1 : 1;
-                const days = getNextReviewDays(vocabList[vocabIndex].reviewLevel);
-                vocabList[vocabIndex].nextReview = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-                localStorage.setItem('vocab', JSON.stringify(vocabList));
-            }
-
-            document.getElementById('review-content').innerHTML = `
-                <div class="result-card ${isCorrect ? '' : 'incorrect'}">
-                    <div class="result-title">${isCorrect ? '✓ 回答正确！' : '✗ 回答错误'}</div>
-                    <div class="result-word">${reviewQueue[currentReviewIndex].word}</div>
-                    ${reviewQueue[currentReviewIndex].phonetic ? `<div style="margin-top: 8px;">${reviewQueue[currentReviewIndex].phonetic}</div>` : ''}
-                    ${reviewQueue[currentReviewIndex].example ? `<div style="margin-top: 8px; font-style: italic;">例：${reviewQueue[currentReviewIndex].example}</div>` : ''}
-                </div>
-                <button class="btn-primary" style="width: 100%;" onclick="nextReviewWord()">${currentReviewIndex + 1 >= reviewQueue.length ? '完成复习' : '下一个'}</button>
-            `;
-        }
-
-        function nextReviewWord() {
-            const reviewQueue = vocabList.filter(v => new Date(v.nextReview) <= new Date());
-            currentReviewIndex++;
-
-            if (currentReviewIndex >= reviewQueue.length) {
-                showReviewResult();
-            } else {
-                showReviewWord(reviewQueue[currentReviewIndex]);
-            }
-        }
-
-        function showReviewResult() {
-            const total = reviewAnswers.length;
-            const percent = total > 0 ? Math.round((correctCount / total) * 100) : 0;
-
-            document.getElementById('review-content').innerHTML = `
-                <div class="score-display">
-                    <div class="score-title">复习完成！</div>
-                    <div class="score-value">${correctCount} / ${total}</div>
-                    <div style="margin-top: 8px; font-size: 16px;">正确率: ${percent}%</div>
-                </div>
-                <div style="margin-bottom: 16px;">
-                    ${reviewAnswers.map((r, i) => `
-                        <div class="fill-blank-question">
-                            <div style="font-size: 14px; color: #6c757d; margin-bottom: 8px;">${i + 1}. ${r.vocab.meaning}</div>
-                            <div>
-                                <span style="color: ${r.isCorrect ? '#28a745' : '#dc3545'};">你的答案: ${r.userAnswer || '(未作答)'}</span>
-                                ${!r.isCorrect ? `<span style="margin-left: 12px; color: #28a745;">正确: ${r.vocab.word}</span>` : ''}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                <button class="btn-primary" style="width: 100%;" onclick="renderReview()">再复习一次</button>
-            `;
-        }
-
-        function getNextReviewDays(level) {
-            const days = [1, 2, 4, 7, 14, 28];
-            return days[Math.min(level, days.length - 1)] || 28;
+            list.innerHTML = materials.map(m => '<div class="material-item" onclick="showMaterialDetail(' + m.id + ')"><div class="material-title">' + m.title + '</div><div class="material-content">' + m.content + '</div><div class="material-category">' + m.category + '</div></div>').join('');
         }
 
         function showMaterialDetail(id) {
-            const material = materials.find(m => m.id === id);
-            if (!material) return;
+            currentMaterial = materials.find(m => m.id === id);
+            if (!currentMaterial) return;
 
-            document.getElementById('fill-blank-content').innerHTML = `
-                <div style="margin-bottom: 20px;">
-                    <div style="font-size: 20px; font-weight: 600; margin-bottom: 12px;">${material.title}</div>
-                    <div style="color: #6c757d; font-size: 14px; margin-bottom: 16px;">${material.category}</div>
-                    <div style="line-height: 1.8;">${material.content}</div>
-                </div>
-                <button class="btn-primary audio-btn" style="width: 100%; margin-bottom: 12px;" onclick="toggleAudio('${material.content}')">🔊 播放语音</button>
-                <button class="btn-secondary" style="width: 100%;" onclick="startFillBlank('${material.content}')">📝 填空练习</button>
-                <button class="btn-secondary" style="width: 100%; margin-top: 12px;" onclick="closeModal('fill-blank-modal')">返回</button>
-            `;
-            document.getElementById('fill-blank-modal').style.display = 'flex';
+            document.getElementById('material-detail-content').innerHTML = '<div style="margin-bottom: 20px;"><div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">' + currentMaterial.title + '</div><div style="color: #6c757d; font-size: 14px; margin-bottom: 16px;">' + currentMaterial.category + '</div><div style="line-height: 1.8;">' + currentMaterial.content + '</div></div><button class="btn-primary audio-btn" style="width: 100%; margin-bottom: 12px;" onclick="toggleAudio()">🔊 播放语音</button><button class="btn-secondary" style="width: 100%;" onclick="startFillBlank()">📝 填空练习</button><button class="btn-secondary" style="width: 100%; margin-top: 12px;" onclick="closeModal(\'material-detail-modal\')">返回</button>';
+            document.getElementById('material-detail-modal').style.display = 'flex';
         }
 
-        function toggleAudio(text) {
+        function toggleAudio() {
+            if (!currentMaterial) return;
+            
             if ('speechSynthesis' in window) {
                 if (isPlaying) {
                     window.speechSynthesis.cancel();
@@ -816,28 +282,19 @@
                     updateAudioButton();
                 } else {
                     window.speechSynthesis.cancel();
-                    const utterance = new SpeechSynthesisUtterance(text);
+                    const utterance = new SpeechSynthesisUtterance(currentMaterial.content);
                     utterance.lang = 'en-US';
                     utterance.rate = 0.9;
                     utterance.pitch = 1;
-                    utterance.onend = function() {
-                        isPlaying = false;
-                        updateAudioButton();
-                    };
+                    utterance.onend = function() { isPlaying = false; updateAudioButton(); };
                     utterance.onerror = function(event) {
                         isPlaying = false;
                         updateAudioButton();
                         let errorMsg = '语音播放失败';
                         switch(event.error) {
-                            case 'not-allowed':
-                                errorMsg = '需要先点击页面才能播放语音';
-                                break;
-                            case 'synthesis-unavailable':
-                                errorMsg = '当前浏览器不支持语音合成，请尝试使用Chrome浏览器';
-                                break;
-                            case 'voice-unavailable':
-                                errorMsg = '语音资源不可用，请尝试使用Chrome浏览器';
-                                break;
+                            case 'not-allowed': errorMsg = '需要先点击页面才能播放语音'; break;
+                            case 'synthesis-unavailable': errorMsg = '当前浏览器不支持语音合成，请尝试使用Chrome浏览器'; break;
+                            case 'voice-unavailable': errorMsg = '语音资源不可用，请尝试使用Chrome浏览器'; break;
                         }
                         alert(errorMsg);
                     };
@@ -858,120 +315,49 @@
 
         function updateAudioButton() {
             const btn = document.querySelector('.audio-btn');
-            if (btn) {
-                btn.innerHTML = isPlaying ? '⏸️ 暂停播放' : '🔊 播放语音';
-            }
+            if (btn) btn.innerHTML = isPlaying ? '⏸️ 暂停播放' : '🔊 播放语音';
         }
 
-        function startFillBlank(content) {
+        function startFillBlank() {
+            if (!currentMaterial) return;
+            
+            const content = currentMaterial.content;
             const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
-            const questions = sentences.map((sentence, index) => {
-                const words = sentence.trim().split(/\s+/);
-                if (words.length < 4) return null;
-                const blankIndex = Math.floor(words.length / 2);
-                const answer = words[blankIndex];
-                words[blankIndex] = '____';
-                return { sentence: words.join(' '), answer, original: sentence.trim() };
-            }).filter(q => q !== null);
-
-            if (questions.length === 0) {
+            if (sentences.length === 0) {
                 alert('内容太短，无法生成填空练习');
                 return;
             }
 
-            let userAnswers = Array(questions.length).fill('');
-            let submitted = false;
-
-            document.getElementById('fill-blank-content').innerHTML = `
-                <div style="font-size: 16px; font-weight: 500; margin-bottom: 16px;">请填写空白处的单词</div>
-                ${questions.map((q, i) => `
-                    <div class="fill-blank-question">
-                        <div class="question-text">${i + 1}. ${q.sentence}</div>
-                        <input type="text" class="question-input" placeholder="输入答案..." id="fb-${i}" ${submitted ? 'disabled' : ''}>
-                    </div>
-                `).join('')}
-                ${!submitted ? `
-                    <button class="btn-primary" style="width: 100%;" onclick="submitFillBlank(${JSON.stringify(questions).replace(/"/g, '&quot;')})">提交答案</button>
-                ` : ''}
-            `;
-        }
-
-        function submitFillBlank(questions) {
-            let score = 0;
-            const results = questions.map((q, i) => {
-                const userAnswer = document.getElementById(`fb-${i}`).value.toLowerCase().trim();
-                const isCorrect = userAnswer === q.answer.toLowerCase();
-                if (isCorrect) score++;
-                return { ...q, userAnswer, isCorrect };
-            });
-
-            document.getElementById('fill-blank-content').innerHTML = `
-                <div class="score-display">
-                    <div class="score-title">练习完成！</div>
-                    <div class="score-value">${score} / ${questions.length}</div>
-                    <div style="margin-top: 8px; font-size: 16px;">正确率: ${Math.round((score / questions.length) * 100)}%</div>
-                </div>
-                ${results.map((r, i) => `
-                    <div class="fill-blank-question" style="background: ${r.isCorrect ? '#d4edda' : '#f8d7da'};">
-                        <div class="question-text">${i + 1}. ${r.original}</div>
-                        <div style="margin-top: 8px;">
-                            <span style="color: ${r.isCorrect ? '#28a745' : '#dc3545'};">你的答案: ${r.userAnswer || '(未作答)'}</span>
-                            ${!r.isCorrect ? `<span style="margin-left: 12px; color: #28a745;">正确: ${r.answer}</span>` : ''}
-                        </div>
-                    </div>
-                `).join('')}
-                <button class="btn-primary" style="width: 100%; margin-top: 16px;" onclick="closeModal('fill-blank-modal')">完成</button>
-            `;
-        }
-
-        function showAddMaterialModal() {
-            document.getElementById('material-title').value = '';
-            document.getElementById('material-content').value = '';
-            document.getElementById('material-category').value = '默认';
-            document.getElementById('add-material-modal').style.display = 'flex';
-        }
-
-        function showAddVocabModal() {
-            document.getElementById('vocab-word').value = '';
-            document.getElementById('vocab-meaning').value = '';
-            document.getElementById('vocab-phonetic').value = '';
-            document.getElementById('vocab-example').value = '';
-            document.getElementById('add-vocab-modal').style.display = 'flex';
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-        }
-
-        function addMaterial() {
-            const title = document.getElementById('material-title').value.trim();
-            const content = document.getElementById('material-content').value.trim();
-            const category = document.getElementById('material-category').value;
-
-            if (!title || !content) {
-                alert('请填写标题和内容');
+            const sentence = sentences[Math.floor(Math.random() * sentences.length)].trim();
+            const words = sentence.split(' ').filter(w => w.length > 3);
+            if (words.length < 3) {
+                alert('单词太少，无法生成填空练习');
                 return;
             }
 
-            const newMaterial = {
-                id: Date.now(),
-                title,
-                content,
-                category,
-                createdAt: new Date().toISOString()
-            };
+            const blankIndex = Math.floor(Math.random() * words.length);
+            const answer = words[blankIndex];
+            words[blankIndex] = '____';
 
-            materials.push(newMaterial);
-            localStorage.setItem('materials', JSON.stringify(materials));
-            closeModal('add-material-modal');
-            renderHomeStats();
-            renderMaterials();
+            document.getElementById('material-detail-content').innerHTML = '<div style="margin-bottom: 20px;"><div style="font-weight: 600; margin-bottom: 16px;">填空练习</div><div class="fill-blank-question"><div>' + words.join(' ') + '</div><input type="text" class="question-input" placeholder="输入缺失的单词..." id="fill-blank-input"></div></div><button class="btn-primary" style="width: 100%;" onclick="checkFillBlankAnswer(\'' + answer + '\')">确认答案</button><button class="btn-secondary" style="width: 100%; margin-top: 12px;" onclick="showMaterialDetail(' + currentMaterial.id + ')">返回</button>';
+            document.getElementById('fill-blank-input').focus();
+        }
+
+        function checkFillBlankAnswer(correctAnswer) {
+            const userAnswer = document.getElementById('fill-blank-input').value.toLowerCase().trim();
+            const isCorrect = userAnswer === correctAnswer.toLowerCase();
+
+            document.getElementById('material-detail-content').innerHTML = '<div class="result-card ' + (isCorrect ? '' : 'incorrect') + '"><div class="result-title">' + (isCorrect ? '✓ 回答正确！' : '✗ 回答错误') + '</div><div class="result-word">' + correctAnswer + '</div></div><button class="btn-primary" style="width: 100%;" onclick="closeModal(\'material-detail-modal\')">' + (isCorrect ? '完成练习' : '再试一次') + '</button>';
+        }
+
+        function showAddVocabModal() {
+            document.getElementById('add-vocab-modal').style.display = 'flex';
         }
 
         function addVocab() {
             const word = document.getElementById('vocab-word').value.trim();
-            const meaning = document.getElementById('vocab-meaning').value.trim();
             const phonetic = document.getElementById('vocab-phonetic').value.trim();
+            const meaning = document.getElementById('vocab-meaning').value.trim();
             const example = document.getElementById('vocab-example').value.trim();
 
             if (!word || !meaning) {
@@ -979,43 +365,159 @@
                 return;
             }
 
-            const newVocab = {
-                id: Date.now(),
-                word,
-                meaning,
-                phonetic: phonetic || null,
-                example: example || null,
-                reviewLevel: 0,
-                nextReview: new Date().toISOString(),
-                isCustom: true
-            };
-
-            vocabList.push(newVocab);
+            vocabList.push({ id: Date.now(), word, phonetic, meaning, example, reviewLevel: 1, nextReview: new Date().toISOString() });
             localStorage.setItem('vocab', JSON.stringify(vocabList));
             closeModal('add-vocab-modal');
-            renderHomeStats();
             renderVocab();
+            updateHomeCounts();
+            alert('添加成功！');
+
+            document.getElementById('vocab-word').value = '';
+            document.getElementById('vocab-phonetic').value = '';
+            document.getElementById('vocab-meaning').value = '';
+            document.getElementById('vocab-example').value = '';
+        }
+
+        function renderVocab() {
+            const list = document.getElementById('vocab-list');
+            if (vocabList.length === 0) {
+                list.innerHTML = '<div class="empty-state"><div class="empty-icon">📖</div><div>暂无单词</div><div style="font-size: 14px; margin-top: 8px;">点击上方按钮添加</div></div>';
+                return;
+            }
+
+            list.innerHTML = vocabList.map(v => '<div class="material-item"><div style="font-weight: 600; font-size: 18px;">' + v.word + '</div>' + (v.phonetic ? '<div style="color: #6c757d;">' + v.phonetic + '</div>' : '') + '<div style="margin-top: 8px;">' + v.meaning + '</div>' + (v.example ? '<div style="margin-top: 8px; font-style: italic; font-size: 14px; color: #6c757d;">例：' + v.example + '</div>' : '') + '<button class="delete-btn" onclick="deleteVocab(' + v.id + ')">删除</button></div>').join('');
+        }
+
+        function filterVocab() {
+            const search = document.getElementById('vocab-search').value.toLowerCase();
+            const filtered = vocabList.filter(v => v.word.toLowerCase().includes(search) || v.meaning.includes(search));
+            const list = document.getElementById('vocab-list');
+
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><div>未找到匹配的单词</div></div>';
+                return;
+            }
+
+            list.innerHTML = filtered.map(v => '<div class="material-item"><div style="font-weight: 600; font-size: 18px;">' + v.word + '</div>' + (v.phonetic ? '<div style="color: #6c757d;">' + v.phonetic + '</div>' : '') + '<div style="margin-top: 8px;">' + v.meaning + '</div>' + (v.example ? '<div style="margin-top: 8px; font-style: italic; font-size: 14px; color: #6c757d;">例：' + v.example + '</div>' : '') + '<button class="delete-btn" onclick="deleteVocab(' + v.id + ')">删除</button></div>').join('');
         }
 
         function deleteVocab(id) {
-            if (!confirm('确定要删除这个单词吗？')) return;
-            vocabList = vocabList.filter(v => v.id !== id);
-            localStorage.setItem('vocab', JSON.stringify(vocabList));
-            renderHomeStats();
-            renderVocab();
+            if (confirm('确定要删除这个单词吗？')) {
+                vocabList = vocabList.filter(v => v.id !== id);
+                localStorage.setItem('vocab', JSON.stringify(vocabList));
+                renderVocab();
+                updateHomeCounts();
+            }
         }
 
-        function formatDate(dateStr) {
-            const date = new Date(dateStr);
-            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        function renderReview() {
+            const reviewQueue = vocabList.filter(v => new Date(v.nextReview) <= new Date());
+            
+            if (reviewQueue.length === 0) {
+                document.getElementById('review-content').innerHTML = '<div class="empty-state"><div class="empty-icon">🔄</div><div>暂无待复习单词</div><div style="font-size: 14px; margin-top: 8px;">添加单词后会自动生成复习计划</div></div>';
+                return;
+            }
+
+            currentReviewIndex = 0;
+            reviewAnswers = [];
+            correctCount = 0;
+            showReviewWord(reviewQueue[currentReviewIndex]);
         }
 
-        document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.addEventListener('click', () => navigateTo(tab.dataset.tab));
-        });
+        function showReviewWord(vocab) {
+            document.getElementById('review-content').innerHTML = '<div class="vocab-card"><div class="review-word">' + vocab.meaning + '</div><div class="review-meaning">请写出对应的英文单词</div></div><input type="text" class="question-input" placeholder="输入单词..." id="review-input" onkeyup="(e) => e.key === \'Enter\' && checkReviewAnswer()"><button class="btn-primary" style="width: 100%; margin-top: 12px;" onclick="checkReviewAnswer()">确认</button><div style="text-align: center; margin-top: 16px; color: #6c757d; font-size: 14px;">进度: ' + (currentReviewIndex + 1) + ' / ' + vocabList.filter(v => new Date(v.nextReview) <= new Date()).length + '</div>';
+            document.getElementById('review-input').focus();
+        }
 
-        initData();
-        renderHomeStats();
+        function checkReviewAnswer() {
+            const reviewQueue = vocabList.filter(v => new Date(v.nextReview) <= new Date());
+            const userAnswer = document.getElementById('review-input').value.toLowerCase().trim();
+            const correctAnswer = reviewQueue[currentReviewIndex].word.toLowerCase();
+            const isCorrect = userAnswer === correctAnswer;
+
+            reviewAnswers.push({ vocab: reviewQueue[currentReviewIndex], userAnswer, isCorrect });
+            if (isCorrect) correctCount++;
+
+            const vocabIndex = vocabList.findIndex(v => v.id === reviewQueue[currentReviewIndex].id);
+            if (vocabIndex !== -1) {
+                vocabList[vocabIndex].reviewLevel = isCorrect ? vocabList[vocabIndex].reviewLevel + 1 : 1;
+                const days = getNextReviewDays(vocabList[vocabIndex].reviewLevel);
+                vocabList[vocabIndex].nextReview = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+                localStorage.setItem('vocab', JSON.stringify(vocabList));
+            }
+
+            document.getElementById('review-content').innerHTML = '<div class="result-card ' + (isCorrect ? '' : 'incorrect') + '"><div class="result-title">' + (isCorrect ? '✓ 回答正确！' : '✗ 回答错误') + '</div><div class="result-word">' + reviewQueue[currentReviewIndex].word + '</div>' + (reviewQueue[currentReviewIndex].phonetic ? '<div style="margin-top: 8px;">' + reviewQueue[currentReviewIndex].phonetic + '</div>' : '') + (reviewQueue[currentReviewIndex].example ? '<div style="margin-top: 8px; font-style: italic;">例：' + reviewQueue[currentReviewIndex].example + '</div>' : '') + '</div><button class="btn-primary" style="width: 100%;" onclick="nextReviewWord()">' + (currentReviewIndex + 1 >= reviewQueue.length ? '完成复习' : '下一个') + '</button>';
+        }
+
+        function nextReviewWord() {
+            const reviewQueue = vocabList.filter(v => new Date(v.nextReview) <= new Date());
+            currentReviewIndex++;
+
+            if (currentReviewIndex >= reviewQueue.length) {
+                showReviewResult();
+            } else {
+                showReviewWord(reviewQueue[currentReviewIndex]);
+            }
+        }
+
+        function showReviewResult() {
+            const total = reviewAnswers.length;
+            const percent = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+
+            document.getElementById('review-content').innerHTML = '<div class="score-display"><div class="score-title">复习完成！</div><div class="score-value">' + correctCount + ' / ' + total + '</div><div style="margin-top: 8px; font-size: 16px;">正确率: ' + percent + '%</div></div><div style="margin-bottom: 16px;">' + reviewAnswers.map((r, i) => '<div class="fill-blank-question"><div style="font-size: 14px; color: #6c757d; margin-bottom: 8px;">' + (i + 1) + '. ' + r.vocab.meaning + '</div><div><span style="color: ' + (r.isCorrect ? '#28a745' : '#dc3545') + ';">你的答案: ' + (r.userAnswer || '(未作答)') + '</span>' + (!r.isCorrect ? '<span style="margin-left: 12px; color: #28a745;">正确: ' + r.vocab.word + '</span>' : '') + '</div></div>').join('') + '</div><button class="btn-primary" style="width: 100%;" onclick="renderReview()">再复习一次</button>';
+        }
+
+        function getNextReviewDays(level) {
+            const days = [1, 2, 4, 7, 14, 28];
+            return days[Math.min(level, days.length - 1)] || 28;
+        }
+
+        async function syncMaterials() {
+            try {
+                const pendingMaterials = await fetchPendingMaterials();
+                
+                if (pendingMaterials.length === 0) {
+                    alert('暂无新资料需要同步');
+                    return;
+                }
+
+                let confirmText = '发现 ' + pendingMaterials.length + ' 条新资料：\n\n';
+                pendingMaterials.forEach((m, i) => {
+                    confirmText += (i + 1) + '. ' + m.title + '\n';
+                    confirmText += '   ' + m.content.substring(0, 50) + '...\n\n';
+                });
+
+                if (confirm(confirmText + '是否同步这些资料？')) {
+                    const localMaterials = JSON.parse(localStorage.getItem('materials') || '[]');
+                    let addedCount = 0;
+
+                    pendingMaterials.forEach(remote => {
+                        const exists = localMaterials.some(m => m.title === remote.title);
+                        if (!exists) {
+                            localMaterials.push({ id: Date.now() + Math.random(), ...remote, createdAt: new Date().toISOString() });
+                            addedCount++;
+                        }
+                    });
+
+                    localStorage.setItem('materials', JSON.stringify(localMaterials));
+                    alert('成功同步 ' + addedCount + ' 条新资料！');
+                    materials = localMaterials;
+                    renderMaterials();
+                    updateHomeCounts();
+                } else {
+                    alert('已取消同步');
+                }
+            } catch (error) {
+                console.error('同步失败:', error);
+                alert('同步失败，请稍后重试');
+            }
+        }
+
+        async function fetchPendingMaterials() {
+            return [{ title: 'Daily English ' + new Date().toLocaleDateString(), content: 'The best way to learn English is consistent practice. Every day spend at least 30 minutes reading, listening, or speaking. You will see improvement over time.', category: '每日推送' }, { title: 'English Tips', content: 'Vocabulary is the foundation of language learning. Try to learn 5-10 new words every day. Use flashcards or apps to help memorize them effectively.', category: '每日推送' }];
+        }
+
+        init();
     </script>
 </body>
 </html>
