@@ -1,12 +1,74 @@
-# React + Vite
+# 英语学习助手
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个功能丰富的英语学习应用，支持多种学习模式和智能复习系统。
 
-Currently, two official plugins are available:
+## 功能特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 📥 资料接收
+- Open Claw 推送资料（需用户认可后接收）
+- 本地文件上传（支持 txt、md、json）
+- 剪贴板粘贴导入
+- 图片文字识别（OCR）
 
-## Expanding the ESLint configuration
+### 🔊 语音朗读
+- 支持不同速度（0.5x - 1.5x）
+- 暂停/继续功能
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 📝 练习模式
+- 单词填空练习
+- 选择题练习
+- 英译中/中译英模式
+
+### 📚 词汇管理
+- 添加/编辑/删除单词
+- 搜索功能
+- 标记待复习单词
+
+### 🔄 艾宾浩斯遗忘曲线复习
+- 智能复习计划
+- 根据答题情况调整复习间隔（1/2/4/7/14/28天）
+- 正确率统计
+
+### 🎨 界面风格
+- 可爱型图标（🐰）
+- AI风格图标（🤖）
+- 响应式设计，支持手机和Web
+
+### 📦 版本管理
+- 数据备份功能
+- 版本恢复功能
+- 最多保存10个版本
+
+## 技术栈
+
+- Vue 3
+- Vite
+- JavaScript
+- LocalStorage（数据持久化）
+
+## 快速开始
+
+```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+
+# 构建生产版本
+npm run build
+```
+
+## 访问地址
+
+GitHub Pages: https://n5897156.github.io/english-learning-app/
+
+## 数据同步
+
+应用使用浏览器 LocalStorage 存储数据。如果需要在多个设备间同步数据，可以：
+1. 使用浏览器的同步功能（如 Chrome 同步）
+2. 通过设置中的备份/恢复功能手动迁移数据
+
+## License
+
+MIT
