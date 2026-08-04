@@ -18,7 +18,7 @@
         @change="handleImportFile"
       />
     </div>
-    <div class="toolbar-hint">💡 电脑添加资料后，导出文件 → 发到手机 → 手机导入即可同步</div>
+    <div class="toolbar-hint">💡 单篇导出：点击文章右侧 📤 按钮；批量导出：点上方「导出」</div>
     
     <div class="search-bar">
       <input 
@@ -45,6 +45,7 @@
           <div class="material-title" @click="showDetail(material)">{{ material.title }}</div>
           <div class="material-actions">
             <span class="material-category">{{ material.category }}</span>
+            <button class="export-btn" @click.stop="exportSingle(material)" title="导出此篇">📤</button>
             <button class="delete-btn" @click.stop="deleteMaterial(material)">🗑️</button>
           </div>
         </div>
@@ -351,6 +352,9 @@
         <div class="detail-actions">
           <button class="btn-primary" @click="showExerciseTypeModal = true">
             {{ iconStyle === 'cute' ? '📝' : '✏️' }} 开始练习
+          </button>
+          <button class="btn-secondary" @click="exportSingle(selectedMaterial)">
+            {{ iconStyle === 'cute' ? '📤' : '⬇️' }} 导出此篇
           </button>
           <button class="btn-secondary" @click="closeDetail">返回</button>
         </div>
@@ -989,6 +993,25 @@ function handleAdd(material) {
 
 const fileInputRef = ref(null)
 
+function exportSingle(mat) {
+  if (!mat) return
+  const data = {
+    version: '1.0',
+    exportTime: new Date().toISOString(),
+    materials: [mat]
+  }
+  const safeTitle = (mat.title || 'untitled').replace(/[^\w\u4e00-\u9fa5-]/g, '_').slice(0, 30)
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${safeTitle}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 function exportMaterials() {
   const materials = JSON.parse(localStorage.getItem('materials') || '[]')
   if (materials.length === 0) {
@@ -1165,6 +1188,20 @@ onUnmounted(() => {
   font-size: 12px;
   padding: 4px 12px;
   border-radius: 20px;
+}
+
+.export-btn {
+  background: #e3f2fd;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.export-btn:hover {
+  background: #90caf9;
 }
 
 .delete-btn {
