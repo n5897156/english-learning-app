@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
     <div class="header">
-      <h1>{{ iconStyle === 'cute' ? '🐰' : '🤖' }} 英语学习助手</h1>
+      <h1>{{ getStyleIcon() }} 英语学习助手</h1>
     </div>
     
     <div class="nav-tabs">
@@ -33,10 +33,18 @@
         @update="loadVocab"
         :icon-style="iconStyle"
       />
-      <ReviewView 
-        v-if="currentTab === 'review'" 
+      <ReviewView
+        v-if="currentTab === 'review'"
         :vocab-list="vocabList"
         @update="loadVocab"
+        :icon-style="iconStyle"
+      />
+      <AITrainingView
+        v-if="currentTab === 'training'"
+        :icon-style="iconStyle"
+      />
+      <LearningPathView
+        v-if="currentTab === 'path'"
         :icon-style="iconStyle"
       />
       <SettingsView 
@@ -71,6 +79,9 @@ import ReviewView from './components/ReviewView.vue';
 import SettingsView from './components/SettingsView.vue';
 import AddMaterialModal from './components/AddMaterialModal.vue';
 import PendingModal from './components/PendingModal.vue';
+import AITrainingView from './components/AITrainingView.vue';
+import LearningPathView from './components/LearningPathView.vue';
+import { checkSyncUrl, syncFromUrl } from './sync.js';
 const currentTab = ref('home');
 const showAddMaterialModal = ref(false);
 const showPendingModal = ref(false);
@@ -79,13 +90,30 @@ const materials = ref([]);
 const vocabList = ref([]);
 const pendingMaterials = ref([]);
 const versions = ref([]);
-const tabs = computed(() => [
- { id: 'home', name: '首页', icon: iconStyle.value === 'cute' ? '🏠' : '🏠' },
- { id: 'materials', name: '资料', icon: iconStyle.value === 'cute' ? '📚' : '📋' },
- { id: 'vocab', name: '词汇', icon: iconStyle.value === 'cute' ? '📖' : '📊' },
- { id: 'review', name: '复习', icon: iconStyle.value === 'cute' ? '🔄' : '🔁' },
- { id: 'settings', name: '设置', icon: iconStyle.value === 'cute' ? '⚙️' : '⚙️' }
-]);
+const getIcon = (style) => {
+ const icons = {
+ cute: { home: '🏠', materials: '📚', vocab: '📖', review: '🔄', training: '🤖', path: '🗺️', settings: '⚙️' },
+ ai: { home: '🏠', materials: '📋', vocab: '📊', review: '🔁', training: '🤖', path: '📈', settings: '⚙️' },
+ nature: { home: '🌳', materials: '🍃', vocab: '📝', review: '🌱', training: '🤖', path: '🌿', settings: '⚙️' },
+ neon: { home: '💡', materials: '✨', vocab: '🔤', review: '🔄', training: '🤖', path: '✨', settings: '⚙️' },
+ retro: { home: '🏠', materials: '📼', vocab: '📖', review: '🔄', training: '🤖', path: '🗺️', settings: '⚙️' },
+ minimal: { home: '◉', materials: '▣', vocab: '▤', review: '↺', training: '◐', path: '○', settings: '⚙' }
+ }
+ return icons[style] || icons.cute
+}
+
+const tabs = computed(() => {
+ const icons = getIcon(iconStyle.value)
+ return [
+ { id: 'home', name: '首页', icon: icons.home },
+ { id: 'materials', name: '资料', icon: icons.materials },
+ { id: 'vocab', name: '词汇', icon: icons.vocab },
+ { id: 'review', name: '复习', icon: icons.review },
+ { id: 'training', name: 'AI训练', icon: icons.training },
+ { id: 'path', name: '路线', icon: icons.path },
+ { id: 'settings', name: '设置', icon: icons.settings }
+ ]
+});
 const homeStats = computed(() => ({
  materials: materials.value.length,
  vocab: vocabList.value.length,
@@ -97,6 +125,18 @@ function navigateTo(tab) {
 function updateIconStyle(style) {
  iconStyle.value = style;
  localStorage.setItem('iconStyle', style);
+}
+
+function getStyleIcon() {
+ const icons = {
+ cute: '🐰',
+ ai: '🤖',
+ nature: '🌿',
+ neon: '✨',
+ retro: '🎮',
+ minimal: '◎'
+ }
+ return icons[iconStyle.value] || '🐰'
 }
 function loadMaterials() {
  materials.value = JSON.parse(localStorage.getItem('materials') || '[]');
@@ -162,11 +202,23 @@ function createVersion() {
  }
  localStorage.setItem('versions', JSON.stringify(versions.value));
 }
+
+
 onMounted(() => {
  loadMaterials();
  loadVocab();
  loadVersions();
  checkPending();
+ 
+ if (checkSyncUrl()) {
+ const result = syncFromUrl();
+ if (result.success) {
+ alert(result.message);
+ loadMaterials();
+ loadVocab();
+ }
+ }
+ 
  if (materials.value.length === 0) {
  materials.value = [
  { id: 1, title: 'Daily English', content: 'The best way to learn English is to practice every day. Reading, writing, listening, and speaking are all important skills. Consistent practice will help you improve quickly.', category: '文章', createdAt: new Date().toISOString() },
@@ -222,14 +274,21 @@ onMounted(() => {
   position: sticky;
   top: 0;
   z-index: 100;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nav-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-tab {
   flex: 1;
-  padding: 18px 12px;
+  min-width: 64px;
+  padding: 18px 8px;
   text-align: center;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #666;
   position: relative;

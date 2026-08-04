@@ -1,12 +1,12 @@
 <template>
   <div class="review-view">
-    <div v-if="!isReviewing && reviewQueue.length === 0" class="empty-state">
+    <div v-if="!isReviewing && reviewQueue.length === 0 && props.vocabList.length === 0" class="empty-state">
       <div class="empty-icon">{{ iconStyle === 'cute' ? '🎉' : '✅' }}</div>
-      <div>暂无待复习单词</div>
-      <div style="font-size: 14px; margin-top: 8px;">添加单词后会自动生成复习计划</div>
+      <div>暂无单词</div>
+      <div style="font-size: 14px; margin-top: 8px;">在词汇页面添加单词</div>
     </div>
     
-    <div v-else-if="!isReviewing && reviewQueue.length > 0" class="review-start">
+    <div v-else-if="!isReviewing" class="review-start">
       <div class="review-stats">
         <div class="stat-item">
           <div class="stat-value">{{ reviewQueue.length }}</div>
@@ -16,18 +16,120 @@
           <div class="stat-value">{{ masteredCount }}</div>
           <div class="stat-label">已掌握</div>
         </div>
+        <div class="stat-item">
+          <div class="stat-value">{{ props.vocabList.length }}</div>
+          <div class="stat-label">总单词</div>
+        </div>
       </div>
       
       <div class="review-info">
         <div>{{ iconStyle === 'cute' ? '📚' : '📖' }} 根据艾宾浩斯遗忘曲线智能安排复习</div>
       </div>
       
-      <button class="btn-primary" @click="startReview">
-        {{ iconStyle === 'cute' ? '🚀' : '▶️' }} 开始复习
-      </button>
+      <div class="ebbinghaus-chart">
+        <div class="chart-title">{{ iconStyle === 'cute' ? '📈' : '📊' }} 遗忘曲线可视化</div>
+        <div class="chart-container">
+          <svg viewBox="0 0 300 150" class="curve-svg">
+            <defs>
+              <linearGradient id="memoryGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#667eea;stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:#667eea;stop-opacity:0.05" />
+              </linearGradient>
+              <linearGradient id="reviewGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#4caf50;stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:#4caf50;stop-opacity:0.05" />
+              </linearGradient>
+            </defs>
+            <path 
+              :d="ebbCurvePath" 
+              fill="none" 
+              stroke="#667eea" 
+              stroke-width="2"
+              stroke-dasharray="5,5"
+              class="ebb-curve"
+            />
+            <path 
+              :d="reviewCurvePath" 
+              fill="none" 
+              stroke="#4caf50" 
+              stroke-width="2"
+              class="review-curve"
+            />
+            <circle 
+              v-for="(point, index) in reviewPoints" 
+              :key="index"
+              :cx="point.x" 
+              :cy="point.y" 
+              r="4" 
+              fill="#4caf50"
+            />
+          </svg>
+          <div class="chart-legend">
+            <div class="legend-item">
+              <span class="legend-color" style="background: #667eea;"></span>
+              <span>理论遗忘曲线</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-color" style="background: #4caf50;"></span>
+              <span>你的复习进度</span>
+            </div>
+          </div>
+        </div>
+        <div class="level-distribution">
+          <div class="level-title">复习等级分布</div>
+          <div class="level-bars">
+            <div 
+              v-for="(count, level) in levelDistribution" 
+              :key="level"
+              class="level-bar-item"
+            >
+              <div class="level-label">Lv.{{ level }}</div>
+              <div class="level-bar-container">
+                <div 
+                  class="level-bar" 
+                  :style="{ width: (count / maxLevelCount * 100) + '%' }"
+                  :class="'level-' + level"
+                ></div>
+              </div>
+              <div class="level-count">{{ count }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="review-actions">
+        <button class="btn-primary" @click="startReview">
+          {{ iconStyle === 'cute' ? '🚀' : '▶️' }} 开始复习
+        </button>
+        <button class="btn-secondary" @click="showAddReviewModal = true">
+          {{ iconStyle === 'cute' ? '➕' : '+' }} 手动添加复习
+        </button>
+      </div>
     </div>
     
-    <div v-else class="review-content">
+    <div v-if="showAddReviewModal" class="modal-overlay" @click.self="showAddReviewModal = false">
+      <div class="modal-content">
+        <div class="modal-title">选择要复习的单词</div>
+        <div class="vocab-select-list">
+          <div 
+            v-for="vocab in props.vocabList" 
+            :key="vocab.id"
+            :class="['vocab-select-item', { selected: selectedVocabIds.includes(vocab.id) }]"
+            @click="toggleVocabSelection(vocab.id)"
+          >
+            <span class="vocab-word">{{ vocab.word }}</span>
+            <span class="vocab-meaning">{{ vocab.meaning }}</span>
+            <span v-if="selectedVocabIds.includes(vocab.id)" class="selected-mark">✓</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showAddReviewModal = false">取消</button>
+          <button class="btn-primary" @click="addSelectedToReview">添加到复习</button>
+        </div>
+      </div>
+    </div>
+    
+    <div v-if="isReviewing" class="review-content">
       <div class="progress-bar">
         <div 
           class="progress-fill" 
@@ -115,7 +217,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 const props = defineProps({
   vocabList: {
@@ -141,6 +243,8 @@ const showResultSummary = ref(false)
 const reviewQueue = ref([])
 const currentVocab = ref(null)
 const currentQuestion = ref(null)
+const showAddReviewModal = ref(false)
+const selectedVocabIds = ref([])
 
 const masteredCount = computed(() => {
   return props.vocabList.filter(v => v.reviewLevel >= 6).length
@@ -151,8 +255,88 @@ const progressPercent = computed(() => {
   return ((currentIndex.value + 1) / reviewQueue.value.length) * 100
 })
 
+const ebbCurvePath = computed(() => {
+  const points = []
+  for (let i = 0; i <= 10; i++) {
+    const x = i * 30
+    const forgettingRate = Math.exp(-i * 0.3) * 100
+    const y = 150 - (forgettingRate * 1.3)
+    points.push(`${x},${y}`)
+  }
+  return `M ${points.join(' L ')}`
+})
+
+const reviewCurvePath = computed(() => {
+  const points = []
+  const days = [0, 1, 2, 4, 7, 14, 28]
+  days.forEach((day, i) => {
+    const x = (day / 28) * 280 + 10
+    const levelCount = props.vocabList.filter(v => v.reviewLevel === i + 1).length
+    const retention = Math.min(100, levelCount * 20 + 30)
+    const y = 150 - (retention * 1.3)
+    points.push(`${x},${y}`)
+  })
+  if (points.length === 0) return ''
+  return `M ${points.join(' L ')}`
+})
+
+const reviewPoints = computed(() => {
+  const points = []
+  const days = [0, 1, 2, 4, 7, 14, 28]
+  days.forEach((day, i) => {
+    const x = (day / 28) * 280 + 10
+    const levelCount = props.vocabList.filter(v => v.reviewLevel === i + 1).length
+    const retention = Math.min(100, levelCount * 20 + 30)
+    const y = 150 - (retention * 1.3)
+    points.push({ x, y })
+  })
+  return points
+})
+
+const levelDistribution = computed(() => {
+  const dist = {}
+  for (let i = 1; i <= 6; i++) {
+    dist[i] = props.vocabList.filter(v => v.reviewLevel === i).length
+  }
+  return dist
+})
+
+const maxLevelCount = computed(() => {
+  return Math.max(...Object.values(levelDistribution.value), 1)
+})
+
 function loadReviewQueue() {
   reviewQueue.value = props.vocabList.filter(v => new Date(v.nextReview) <= new Date())
+}
+
+function toggleVocabSelection(id) {
+  const index = selectedVocabIds.value.indexOf(id)
+  if (index > -1) {
+    selectedVocabIds.value.splice(index, 1)
+  } else {
+    selectedVocabIds.value.push(id)
+  }
+}
+
+function addSelectedToReview() {
+  if (selectedVocabIds.value.length === 0) {
+    alert('请选择要复习的单词')
+    return
+  }
+  
+  let vocab = JSON.parse(localStorage.getItem('vocab') || '[]')
+  selectedVocabIds.value.forEach(id => {
+    const item = vocab.find(v => v.id === id)
+    if (item) {
+      item.nextReview = new Date().toISOString()
+    }
+  })
+  localStorage.setItem('vocab', JSON.stringify(vocab))
+  emit('update')
+  showAddReviewModal.value = false
+  selectedVocabIds.value = []
+  loadReviewQueue()
+  alert('已添加到复习列表')
 }
 
 function startReview() {
@@ -279,6 +463,10 @@ function exitReview() {
 onMounted(() => {
   loadReviewQueue()
 })
+
+watch(() => props.vocabList, () => {
+  loadReviewQueue()
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -329,8 +517,134 @@ onMounted(() => {
   color: #667eea;
 }
 
-.btn-primary {
+.ebbinghaus-chart {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.chart-container {
+  margin-bottom: 20px;
+}
+
+.curve-svg {
   width: 100%;
+  height: 120px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.legend-color {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.level-distribution {
+  margin-top: 16px;
+}
+
+.level-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.level-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.level-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.level-label {
+  width: 40px;
+  font-size: 13px;
+  color: #666;
+}
+
+.level-bar-container {
+  flex: 1;
+  height: 12px;
+  background: #f0f0f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.level-bar {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s;
+}
+
+.level-bar.level-1 {
+  background: #ffebee;
+}
+
+.level-bar.level-2 {
+  background: #ffecb3;
+}
+
+.level-bar.level-3 {
+  background: #e8f5e9;
+}
+
+.level-bar.level-4 {
+  background: #c8e6c9;
+}
+
+.level-bar.level-5 {
+  background: #a5d6a7;
+}
+
+.level-bar.level-6 {
+  background: #66bb6a;
+}
+
+.level-count {
+  width: 30px;
+  text-align: right;
+  font-size: 13px;
+  color: #666;
+}
+
+.review-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-primary {
+  flex: 1;
   padding: 16px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -343,7 +657,7 @@ onMounted(() => {
 }
 
 .btn-secondary {
-  width: 100%;
+  flex: 1;
   padding: 16px;
   background: #f8f9fa;
   color: #333;
@@ -352,7 +666,62 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
-  margin-top: 12px;
+}
+
+.vocab-select-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.vocab-select-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vocab-select-item:hover {
+  border-color: #667eea;
+}
+
+.vocab-select-item.selected {
+  border-color: #667eea;
+  background: #f5f3ff;
+}
+
+.vocab-select-item .vocab-word {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.vocab-select-item .vocab-meaning {
+  font-size: 14px;
+  color: #666;
+  margin-left: 12px;
+}
+
+.vocab-select-item .selected-mark {
+  color: #667eea;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.modal-actions .btn-primary,
+.modal-actions .btn-secondary {
+  flex: 1;
+  margin-top: 0;
 }
 
 .review-content {
