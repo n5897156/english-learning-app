@@ -26,6 +26,31 @@
         <div class="setting-hint">选择 AI 模型，大模型效果更好但速度稍慢</div>
       </div>
 
+      <div class="setting-card">
+        <div class="setting-label">CORS 代理（解决跨域问题）</div>
+        <select v-model="proxyMode" class="form-input" @change="onProxyModeChange">
+          <option value="cloudflare">Cloudflare Worker（推荐，稳定）</option>
+          <option value="corsproxy">corsproxy.io（公共代理）</option>
+          <option value="direct">直连（仅本地开发可用）</option>
+          <option value="custom">自定义代理 URL</option>
+        </select>
+        <div v-if="proxyMode === 'cloudflare'" class="setting-hint">
+          需要部署一个 Cloudflare Worker。免费快速：
+          <a href="https://dash.cloudflare.com/sign-up" target="_blank" style="color:#667eea;text-decoration:underline;">注册 Cloudflare</a>
+          → 创建 Worker → 粘贴项目根目录的 cloudflare-worker.js 代码
+        </div>
+        <div v-if="proxyMode === 'cloudflare' || proxyMode === 'custom'" style="margin-top: 12px;">
+          <input
+            type="text"
+            v-model="customProxyUrl"
+            :placeholder="proxyMode === 'cloudflare' ? 'https://your-worker.workers.dev' : 'https://your-proxy-server.com'"
+            class="form-input"
+            @change="saveProxy"
+          />
+        </div>
+        <div class="setting-hint">从 GitHub Pages 部署时必须使用代理，否则浏览器会阻止跨域请求</div>
+      </div>
+
       <div v-if="apiKeySaved" class="setting-card ai-status-card">
         <div class="ai-status">{{ iconStyle === 'cute' ? '✅' : '✅' }} AI 功能已就绪</div>
         <button class="btn-secondary" @click="testApiKey" :disabled="isTesting">
@@ -300,9 +325,18 @@ const shareLink = ref('')
 const importData = ref('')
 const apiKey = ref('')
 const aiModel = ref('deepseek-ai/deepseek-v4-pro')
+const proxyMode = ref('corsproxy')
+const customProxyUrl = ref('')
 const apiKeySaved = ref(false)
 const isTesting = ref(false)
 const testResult = ref(null)
+
+const PROXY_PRESETS = {
+  corsproxy: 'https://corsproxy.io/?',
+  cloudflare: '', // 由用户自定义
+  direct: 'direct',
+  custom: 'custom'
+}
 
 const props = defineProps({
   iconStyle: {
@@ -578,6 +612,13 @@ function confirmClear() {
   }
 }
 
+function resolveProxyUrl() {
+  if (proxyMode.value === 'cloudflare' || proxyMode.value === 'custom') {
+    return customProxyUrl.value
+  }
+  return PROXY_PRESETS[proxyMode.value] || 'direct'
+}
+
 function saveApiKey() {
   if (!apiKey.value.trim()) {
     alert('请输入 API Key')
@@ -585,8 +626,38 @@ function saveApiKey() {
   }
   localStorage.setItem('ai_api_key', apiKey.value.trim())
   localStorage.setItem('ai_model', aiModel.value)
+  localStorage.setItem('ai_proxy_mode', proxyMode.value)
+  if (customProxyUrl.value) {
+    localStorage.setItem('ai_custom_proxy', customProxyUrl.value)
+  }
+  const proxy = resolveProxyUrl()
+  localStorage.setItem('ai_proxy', proxy)
   apiKeySaved.value = true
   alert('API Key 已保存！AI 功能已就绪。')
+}
+
+function saveProxy() {
+  const proxy = resolveProxyUrl()
+  localStorage.setItem('ai_proxy', proxy)
+  localStorage.setItem('ai_proxy_mode', proxyMode.value)
+  if (customProxyUrl.value) {
+    localStorage.setItem('ai_custom_proxy', customProxyUrl.value)
+  }
+}
+
+function onProxyModeChange() {
+  if (proxyMode.value === 'corsproxy') {
+    customProxyUrl.value = ''
+    saveProxy()
+  }
+}
+
+function buildProxyUrl(url) {
+  const proxy = resolveProxyUrl()
+  if (proxy === 'direct' || !proxy) return url
+  if (proxy === 'https://corsproxy.io/?') return proxy + encodeURIComponent(url)
+  // Cloudflare Worker or custom: the proxy URL is the full endpoint, append path
+  return proxy.replace(/\/$/, '') + '/v1/chat/completions'
 }
 
 async function testApiKey() {
@@ -595,7 +666,8 @@ async function testApiKey() {
   try {
     const key = localStorage.getItem('ai_api_key')
     const model = localStorage.getItem('ai_model') || 'deepseek-ai/deepseek-v4-pro'
-    const resp = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    const proxyUrl = buildProxyUrl('https://integrate.api.nvidia.com/v1/chat/completions')
+    const resp = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${key}`,
@@ -614,7 +686,7 @@ async function testApiKey() {
       testResult.value = { ok: false, msg: `连接失败 (${resp.status}): ${err.slice(0, 100)}` }
     }
   } catch (e) {
-    testResult.value = { ok: false, msg: `网络错误: ${e.message}` }
+    testResult.value = { ok: false, msg: `网络错误: ${e.message}。请检查 CORS 代理配置。` }
   }
   isTesting.value = false
 }
@@ -628,6 +700,14 @@ onMounted(() => {
   const savedModel = localStorage.getItem('ai_model')
   if (savedModel) {
     aiModel.value = savedModel
+  }
+  const savedProxyMode = localStorage.getItem('ai_proxy_mode')
+  if (savedProxyMode) {
+    proxyMode.value = savedProxyMode
+  }
+  const savedCustomProxy = localStorage.getItem('ai_custom_proxy')
+  if (savedCustomProxy) {
+    customProxyUrl.value = savedCustomProxy
   }
 })
 </script>

@@ -5,6 +5,7 @@
 
 const DEFAULT_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
 const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-pro'
+const DEFAULT_PROXY = 'https://corsproxy.io/?'
 
 function getApiKey() {
   return localStorage.getItem('ai_api_key') || ''
@@ -12,6 +13,21 @@ function getApiKey() {
 
 function getModel() {
   return localStorage.getItem('ai_model') || DEFAULT_MODEL
+}
+
+function getProxy() {
+  return localStorage.getItem('ai_proxy') || DEFAULT_PROXY
+}
+
+/**
+ * 构建带 CORS 代理的请求 URL
+ */
+function buildUrl(url) {
+  const proxy = getProxy()
+  if (!proxy || proxy === 'direct') return url
+  if (proxy === DEFAULT_PROXY) return proxy + encodeURIComponent(url)
+  // Cloudflare Worker 或自定义代理：直接附加路径
+  return proxy.replace(/\/$/, '') + '/v1/chat/completions'
 }
 
 /**
@@ -23,7 +39,7 @@ async function callAI(messages, options = {}) {
     throw new Error('请先在设置中配置 API Key')
   }
 
-  const response = await fetch(DEFAULT_API_URL, {
+  const response = await fetch(buildUrl(DEFAULT_API_URL), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
