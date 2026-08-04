@@ -138,6 +138,173 @@
             </button>
           </div>
 
+          <!-- 句子训练区域 -->
+          <div v-if="sentenceTraining" class="training-section">
+            <div class="training-header">
+              <span>{{ iconStyle === 'cute' ? '🎯' : '🎯' }} 句子训练（{{ sentenceTraining.length }} 句）</span>
+              <button v-if="trainingMode" class="btn-close-ai" @click="backToModes">← 返回模式</button>
+            </div>
+
+            <!-- 模式选择 -->
+            <div v-if="!trainingMode" class="training-modes">
+              <button class="training-mode-btn" @click="startTraining('browse')">
+                <span class="mode-icon">📖</span>
+                <span class="mode-name">对照浏览</span>
+                <span class="mode-desc">中英对照查看+朗读</span>
+              </button>
+              <button class="training-mode-btn" @click="startTraining('translate')">
+                <span class="mode-icon">✍️</span>
+                <span class="mode-name">看中写英</span>
+                <span class="mode-desc">看中文写英文</span>
+              </button>
+              <button class="training-mode-btn" @click="startTraining('dictation')">
+                <span class="mode-icon">🎧</span>
+                <span class="mode-name">听写训练</span>
+                <span class="mode-desc">听英文写出来</span>
+              </button>
+              <button class="training-mode-btn" @click="startTraining('cloze')">
+                <span class="mode-icon">🔲</span>
+                <span class="mode-name">填空测试</span>
+                <span class="mode-desc">AI 生成填空题</span>
+              </button>
+            </div>
+
+            <!-- 对照浏览 -->
+            <div v-if="trainingMode === 'browse'" class="browse-mode">
+              <div v-for="sentence in sentenceTraining" :key="sentence.id" class="sentence-card">
+                <div class="sentence-top">
+                  <span class="sentence-num">#{{ sentence.id }}</span>
+                  <button class="speak-btn small" @click="speakText(sentence.english)">🔊</button>
+                </div>
+                <div class="sentence-en">{{ sentence.english }}</div>
+                <div class="sentence-zh">{{ sentence.chinese }}</div>
+                <div v-if="sentence.note" class="sentence-note">💡 {{ sentence.note }}</div>
+              </div>
+            </div>
+
+            <!-- 看中写英 -->
+            <div v-if="trainingMode === 'translate'" class="translate-mode">
+              <div v-if="trainingIdx < sentenceTraining.length" class="training-card">
+                <div class="training-progress">第 {{ trainingIdx + 1 }} / {{ sentenceTraining.length }} 句</div>
+                <div class="training-chinese">{{ sentenceTraining[trainingIdx].chinese }}</div>
+                <textarea
+                  v-model="trainingAnswer"
+                  class="training-input"
+                  placeholder="根据中文翻译写出英文..."
+                  rows="3"
+                  :disabled="trainingResult"
+                ></textarea>
+                <div v-if="!trainingResult" class="training-actions">
+                  <button class="btn-primary" @click="checkTranslateAnswer_local" :disabled="!trainingAnswer.trim() || isCheckingTraining">
+                    {{ isCheckingTraining ? 'AI 评估中...' : '检查答案' }}
+                  </button>
+                </div>
+                <div v-if="trainingResult" :class="['training-result', trainingResult.correct ? 'correct' : 'incorrect']">
+                  <div class="result-icon">{{ trainingResult.correct ? '🎉' : '😅' }}</div>
+                  <div class="result-text">{{ trainingResult.correct ? '翻译正确！' : '有些小问题' }}</div>
+                  <div class="result-detail">
+                    <div><strong>原句：</strong>{{ sentenceTraining[trainingIdx].english }}</div>
+                    <div><strong>你的：</strong>{{ trainingAnswer }}</div>
+                    <div class="feedback">{{ trainingResult.feedback }}</div>
+                  </div>
+                  <button class="btn-primary" @click="nextTraining">下一句 →</button>
+                </div>
+              </div>
+              <div v-else class="all-done">
+                <div class="done-icon">🎊</div>
+                <div>全部完成！</div>
+                <button class="btn-primary" @click="restartTraining">重新训练</button>
+              </div>
+            </div>
+
+            <!-- 听写 -->
+            <div v-if="trainingMode === 'dictation'" class="dictation-mode">
+              <div v-if="trainingIdx < sentenceTraining.length" class="training-card">
+                <div class="training-progress">第 {{ trainingIdx + 1 }} / {{ sentenceTraining.length }} 句</div>
+                <div class="dictation-hint">点击播放听句子，写下你听到的英文</div>
+                <div class="dictation-play">
+                  <button class="play-btn" @click="speakText(sentenceTraining[trainingIdx].english)">🔊 播放</button>
+                  <button class="play-btn secondary" @click="speakText(sentenceTraining[trainingIdx].english, 0.6)">🐢 慢速</button>
+                </div>
+                <textarea
+                  v-model="trainingAnswer"
+                  class="training-input"
+                  placeholder="写下你听到的英文..."
+                  rows="3"
+                  :disabled="trainingResult"
+                ></textarea>
+                <div v-if="!trainingResult" class="training-actions">
+                  <button class="btn-primary" @click="checkTranslateAnswer_local" :disabled="!trainingAnswer.trim() || isCheckingTraining">
+                    {{ isCheckingTraining ? 'AI 评估中...' : '检查答案' }}
+                  </button>
+                  <button class="btn-secondary" @click="showDictationHint = !showDictationHint">
+                    {{ showDictationHint ? '隐藏提示' : '看中文提示' }}
+                  </button>
+                </div>
+                <div v-if="showDictationHint && !trainingResult" class="training-chinese hint">
+                  {{ sentenceTraining[trainingIdx].chinese }}
+                </div>
+                <div v-if="trainingResult" :class="['training-result', trainingResult.correct ? 'correct' : 'incorrect']">
+                  <div class="result-icon">{{ trainingResult.correct ? '🎉' : '😅' }}</div>
+                  <div class="result-text">{{ trainingResult.correct ? '听写正确！' : '有些小问题' }}</div>
+                  <div class="result-detail">
+                    <div><strong>原句：</strong>{{ sentenceTraining[trainingIdx].english }}</div>
+                    <div><strong>你的：</strong>{{ trainingAnswer }}</div>
+                    <div class="feedback">{{ trainingResult.feedback }}</div>
+                  </div>
+                  <button class="btn-primary" @click="nextTraining">下一句 →</button>
+                </div>
+              </div>
+              <div v-else class="all-done">
+                <div class="done-icon">🎧</div>
+                <div>听写完成！</div>
+                <button class="btn-primary" @click="restartTraining">重新训练</button>
+              </div>
+            </div>
+
+            <!-- 填空 -->
+            <div v-if="trainingMode === 'cloze'" class="cloze-mode">
+              <div v-if="clozeLoading" class="training-loading">
+                <div class="ai-spinner"></div>
+                <div>AI 正在生成填空题...</div>
+              </div>
+              <div v-else-if="clozeExercise && trainingIdx < sentenceTraining.length" class="cloze-card">
+                <div class="training-progress">第 {{ trainingIdx + 1 }} / {{ sentenceTraining.length }} 句</div>
+                <div class="cloze-question">{{ clozeExercise.question }}</div>
+                <div v-if="clozeExercise.hint" class="cloze-hint">💡 {{ clozeExercise.hint }}</div>
+                <div class="cloze-options">
+                  <button
+                    v-for="(opt, i) in clozeExercise.blanks[0].options"
+                    :key="i"
+                    :class="['cloze-option', {
+                      selected: clozeSelected === i,
+                      correct: clozeResult && i === clozeExercise.blanks[0].correctIdx,
+                      wrong: clozeResult && clozeSelected === i && i !== clozeExercise.blanks[0].correctIdx
+                    }]"
+                    @click="selectClozeOption(i)"
+                    :disabled="clozeResult"
+                  >
+                    {{ opt }}
+                  </button>
+                </div>
+                <div v-if="clozeResult" :class="['training-result', clozeResult.correct ? 'correct' : 'incorrect']">
+                  <div class="result-icon">{{ clozeResult.correct ? '🎉' : '😅' }}</div>
+                  <div class="result-text">{{ clozeResult.correct ? '选对了！' : '答错了' }}</div>
+                  <div class="result-detail">
+                    <div><strong>答案：</strong>{{ clozeExercise.blanks[0].answer }}</div>
+                    <div><strong>原句：</strong>{{ clozeExercise.originalSentence }}</div>
+                  </div>
+                  <button class="btn-primary" @click="nextTraining">下一题 →</button>
+                </div>
+              </div>
+              <div v-else class="all-done">
+                <div class="done-icon">🎓</div>
+                <div>填空测试完成！</div>
+                <button class="btn-primary" @click="restartTraining">重新开始</button>
+              </div>
+            </div>
+          </div>
+
           <div v-if="aiQuestions" class="ai-questions">
             <div class="ai-questions-header">
               <span>📝 AI 理解题</span>
@@ -339,7 +506,7 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import AddMaterialModal from './AddMaterialModal.vue'
-import { analyzeArticle, generateComprehensionQuestions, recordExerciseResult } from '../ai.js'
+import { analyzeArticle, generateComprehensionQuestions, recordExerciseResult, checkTranslationAnswer, generateClozeExercise } from '../ai.js'
 
 const props = defineProps({
   materials: {
@@ -378,6 +545,19 @@ const aiQuestions = ref(null)
 const aiUserAnswers = ref({})
 const aiQuestionResults = ref({})
 
+// 句子训练状态
+const sentenceTraining = ref(null) // 存储提取的句子列表
+const trainingMode = ref('') // browse | translate | dictation | cloze
+const trainingIdx = ref(0)
+const trainingAnswer = ref('')
+const trainingResult = ref(null)
+const isCheckingTraining = ref(false)
+const showDictationHint = ref(false)
+const clozeExercise = ref(null)
+const clozeLoading = ref(false)
+const clozeSelected = ref(-1)
+const clozeResult = ref(null)
+
 const filteredMaterials = computed(() => {
   if (!searchQuery.value) return props.materials
   const query = searchQuery.value.toLowerCase()
@@ -406,6 +586,14 @@ function closeDetail() {
   isAnalyzing.value = false
   aiUserAnswers.value = {}
   aiQuestionResults.value = {}
+  sentenceTraining.value = null
+  trainingMode.value = ''
+  trainingIdx.value = 0
+  trainingAnswer.value = ''
+  trainingResult.value = null
+  clozeExercise.value = null
+  clozeResult.value = null
+  clozeSelected.value = -1
 }
 
 async function runAiAnalysis() {
@@ -417,8 +605,20 @@ async function runAiAnalysis() {
   }
   isAnalyzing.value = true
   try {
-    const result = await analyzeArticle(selectedMaterial.value.title, selectedMaterial.value.content)
-    aiAnalysis.value = result
+    const [analysis] = await Promise.all([
+      analyzeArticle(selectedMaterial.value.title, selectedMaterial.value.content)
+    ])
+    aiAnalysis.value = analysis
+    // 用 keySentences 作为训练数据
+    if (analysis.keySentences && analysis.keySentences.length > 0) {
+      sentenceTraining.value = analysis.keySentences.map((s, i) => ({
+        id: i + 1,
+        english: s.sentence,
+        chinese: s.translation,
+        keyWords: [],
+        note: s.note
+      }))
+    }
   } catch (e) {
     alert('AI 分析失败: ' + e.message)
   }
@@ -649,6 +849,113 @@ function playSentence(text) {
   } else {
     alert('您的浏览器不支持语音功能')
   }
+}
+
+function speakText(text, rate = 0.9) {
+  if (!('speechSynthesis' in window)) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'en-US'
+  utterance.rate = rate
+  window.speechSynthesis.speak(utterance)
+}
+
+// ========== 句子训练方法 ==========
+
+function startTraining(mode) {
+  trainingMode.value = mode
+  trainingIdx.value = 0
+  trainingAnswer.value = ''
+  trainingResult.value = null
+  showDictationHint.value = false
+  clozeExercise.value = null
+  clozeResult.value = null
+  clozeSelected.value = -1
+  if (mode === 'cloze') {
+    loadClozeExercise()
+  }
+}
+
+function backToModes() {
+  trainingMode.value = ''
+  trainingResult.value = null
+  clozeExercise.value = null
+}
+
+async function checkTranslateAnswer_local() {
+  const answer = trainingAnswer.value.trim()
+  if (!answer || isCheckingTraining.value) return
+  isCheckingTraining.value = true
+  trainingResult.value = null
+  try {
+    const sentence = sentenceTraining.value[trainingIdx.value]
+    const result = await checkTranslationAnswer(sentence.english, answer)
+    trainingResult.value = result
+    recordExerciseResult('grammar', result.correct)
+  } catch (err) {
+    alert('评估失败: ' + err.message)
+  } finally {
+    isCheckingTraining.value = false
+  }
+}
+
+function nextTraining() {
+  trainingIdx.value++
+  trainingAnswer.value = ''
+  trainingResult.value = null
+  showDictationHint.value = false
+  if (trainingMode.value === 'cloze') {
+    clozeSelected.value = -1
+    clozeResult.value = null
+    loadClozeExercise()
+  }
+}
+
+function restartTraining() {
+  trainingIdx.value = 0
+  trainingAnswer.value = ''
+  trainingResult.value = null
+  showDictationHint.value = false
+  clozeSelected.value = -1
+  clozeResult.value = null
+  if (trainingMode.value === 'cloze') {
+    loadClozeExercise()
+  }
+}
+
+async function loadClozeExercise() {
+  if (trainingIdx.value >= sentenceTraining.value.length) return
+  clozeLoading.value = true
+  clozeExercise.value = null
+  clozeSelected.value = -1
+  clozeResult.value = null
+  try {
+    const sentence = sentenceTraining.value[trainingIdx.value]
+    const result = await generateClozeExercise(sentence.english, sentence.keyWords || [])
+    const correctAnswer = result.blanks[0].answer
+    result.blanks[0].correctIdx = result.blanks[0].options.indexOf(correctAnswer)
+    if (result.blanks[0].correctIdx === 0) {
+      const shuffled = [...result.blanks[0].options].sort(() => Math.random() - 0.5)
+      result.blanks[0].options = shuffled
+      result.blanks[0].correctIdx = shuffled.indexOf(correctAnswer)
+    }
+    result.originalSentence = sentence.english
+    clozeExercise.value = result
+  } catch (err) {
+    alert('生成填空题失败')
+    trainingIdx.value++
+    if (trainingIdx.value < sentenceTraining.value.length) loadClozeExercise()
+  } finally {
+    clozeLoading.value = false
+  }
+}
+
+function selectClozeOption(idx) {
+  if (clozeResult.value) return
+  clozeSelected.value = idx
+  const correct = idx === clozeExercise.value.blanks[0].correctIdx
+  clozeResult.value = { correct }
+  recordExerciseResult('vocabulary', correct)
 }
 
 function deleteMaterial(material) {
@@ -1413,5 +1720,348 @@ onUnmounted(() => {
   border-radius: 6px;
   font-size: 13px;
   color: #666;
+}
+
+/* ========== 句子训练 ========== */
+.training-section {
+  margin-top: 16px;
+  background: #f8f9ff;
+  border: 1px solid #e3f2fd;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.training-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.training-modes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.training-mode-btn {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 14px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.training-mode-btn:hover {
+  border-color: #667eea;
+  background: #f5f3ff;
+}
+
+.mode-icon {
+  font-size: 24px;
+}
+
+.mode-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.mode-desc {
+  font-size: 12px;
+  color: #999;
+}
+
+.training-card, .cloze-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.training-progress {
+  font-size: 13px;
+  color: #667eea;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.training-chinese {
+  font-size: 16px;
+  color: #333;
+  line-height: 1.6;
+  padding: 12px 14px;
+  background: #f5f3ff;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.training-chinese.hint {
+  font-size: 14px;
+  color: #666;
+  background: #fff8e1;
+  font-weight: 400;
+}
+
+.training-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 12px;
+  background: white;
+  line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.training-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.training-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.training-actions .btn-primary,
+.training-actions .btn-secondary {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+}
+
+.training-loading {
+  text-align: center;
+  padding: 32px;
+  color: #667;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.dictation-hint {
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.dictation-play {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.play-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.play-btn.secondary {
+  background: white;
+  color: #667eea;
+  border: 1px solid #667eea;
+}
+
+.browse-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sentence-card {
+  background: white;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.sentence-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.sentence-num {
+  font-size: 12px;
+  color: #999;
+  font-weight: 600;
+  background: #f5f3ff;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.speak-btn.small {
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 8px;
+  background: #f5f3ff;
+  border: none;
+  cursor: pointer;
+}
+
+.sentence-en {
+  font-size: 15px;
+  color: #333;
+  line-height: 1.6;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.sentence-zh {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.sentence-note {
+  font-size: 12px;
+  color: #7c4dff;
+  background: #f3e5f5;
+  padding: 6px 8px;
+  border-radius: 6px;
+  line-height: 1.5;
+}
+
+.training-result {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.training-result.correct {
+  background: #e8f5e9;
+}
+
+.training-result.incorrect {
+  background: #ffebee;
+}
+
+.result-icon {
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.result-text {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.result-detail {
+  text-align: left;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.7;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.feedback {
+  color: #667eea;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.cloze-question {
+  font-size: 16px;
+  color: #333;
+  line-height: 1.8;
+  padding: 14px;
+  background: #f5f3ff;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.cloze-hint {
+  font-size: 13px;
+  color: #7c4dff;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.cloze-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.cloze-option {
+  padding: 12px 10px;
+  border: 2px solid #e0e0e0;
+  background: white;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  color: #333;
+}
+
+.cloze-option:hover:not(:disabled) {
+  border-color: #667eea;
+  background: #f5f3ff;
+}
+
+.cloze-option.correct {
+  border-color: #1b5e20;
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+
+.cloze-option.wrong {
+  border-color: #c62828;
+  background: #ffebee;
+  color: #c62828;
+}
+
+.cloze-option:disabled {
+  cursor: not-allowed;
+}
+
+.all-done {
+  background: white;
+  border-radius: 12px;
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.done-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.all-done > div:nth-child(2) {
+  font-size: 16px;
+  color: #333;
+  font-weight: 500;
+  margin-bottom: 16px;
 }
 </style>
