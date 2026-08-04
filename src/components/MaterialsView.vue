@@ -4,10 +4,21 @@
       <button class="btn-secondary" @click="showAddModal = true">
         {{ iconStyle === 'cute' ? '➕' : '+' }} 添加新资料
       </button>
-      <button class="btn-primary" @click="syncMaterials">
-        {{ iconStyle === 'cute' ? '🔄' : '🔃' }} 同步资料
+      <button class="btn-secondary" @click="exportMaterials">
+        {{ iconStyle === 'cute' ? '📤' : '⬇️' }} 导出
       </button>
+      <button class="btn-secondary" @click="triggerImport">
+        {{ iconStyle === 'cute' ? '📥' : '⬆️' }} 导入
+      </button>
+      <input
+        type="file"
+        accept=".json"
+        class="file-input-hidden"
+        ref="fileInputRef"
+        @change="handleImportFile"
+      />
     </div>
+    <div class="toolbar-hint">💡 电脑添加资料后，导出文件 → 发到手机 → 手机导入即可同步</div>
     
     <div class="search-bar">
       <input 
@@ -976,37 +987,71 @@ function handleAdd(material) {
   emit('update')
 }
 
-async function syncMaterials() {
-  const pending = [
-    { 
-      id: Date.now(),
-      title: 'Daily English ' + new Date().toLocaleDateString(), 
-      content: 'The best way to learn English is consistent practice. Every day spend at least 30 minutes reading, listening, or speaking. You will see improvement over time.', 
-      category: '每日推送' 
-    },
-    {
-      id: Date.now() + 1,
-      title: 'English News',
-      content: 'Technology continues to change our lives. Learning new skills helps us adapt to the digital world. English is essential for global communication.',
-      category: '新闻'
+const fileInputRef = ref(null)
+
+function exportMaterials() {
+  const materials = JSON.parse(localStorage.getItem('materials') || '[]')
+  if (materials.length === 0) {
+    alert('资料库是空的，没有内容可导出')
+    return
+  }
+  const data = {
+    version: '1.0',
+    exportTime: new Date().toISOString(),
+    materials: materials
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `english-materials-${Date.now()}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  alert(`已导出 ${materials.length} 篇资料！\n\n将此文件发送到手机（微信/邮件），然后在手机上点击「导入」即可。`)
+}
+
+function triggerImport() {
+  fileInputRef.value?.click()
+}
+
+function handleImportFile(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result)
+      if (!imported.materials || !Array.isArray(imported.materials)) {
+        alert('无效的文件格式，请确认是导出的 JSON 文件')
+        return
+      }
+
+      const existing = JSON.parse(localStorage.getItem('materials') || '[]')
+      const existingTitles = new Set(existing.map(m => m.title))
+
+      let addedCount = 0
+      imported.materials.forEach(m => {
+        if (!existingTitles.has(m.title)) {
+          existing.push({
+            ...m,
+            id: Date.now() + Math.random() * 1000
+          })
+          addedCount++
+        }
+      })
+
+      localStorage.setItem('materials', JSON.stringify(existing))
+      loadMaterials()
+      alert(`导入成功！\n新增 ${addedCount} 篇，已存在 ${existing.length - addedCount} 篇（跳过重复）`)
+    } catch {
+      alert('导入失败！文件格式错误')
     }
-  ]
-  
-  if (pending.length === 0) {
-    alert('暂无新资料')
-    return
   }
-  
-  const pendingMaterials = JSON.parse(localStorage.getItem('pendingMaterials') || '[]')
-  const newPending = pending.filter(p => !pendingMaterials.some(pp => pp.title === p.title))
-  
-  if (newPending.length === 0) {
-    alert('暂无新资料')
-    return
-  }
-  
-  localStorage.setItem('pendingMaterials', JSON.stringify([...pendingMaterials, ...newPending]))
-  alert('发现 ' + newPending.length + ' 条新资料，请查看待审核列表')
+  reader.readAsText(file)
+  event.target.value = ''
 }
 
 onUnmounted(() => {
@@ -1017,8 +1062,22 @@ onUnmounted(() => {
 <style scoped>
 .toolbar {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.toolbar-hint {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fff8e1;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+
+.file-input-hidden {
+  display: none;
 }
 
 .toolbar button {
