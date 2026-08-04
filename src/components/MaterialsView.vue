@@ -45,6 +45,7 @@
           <div class="material-title" @click="showDetail(material)">{{ material.title }}</div>
           <div class="material-actions">
             <span class="material-category">{{ material.category }}</span>
+            <button class="edit-btn" @click.stop="startEdit(material)" title="编辑">✏️</button>
             <button class="export-btn" @click.stop="exportSingle(material)" title="导出此篇">📤</button>
             <button class="delete-btn" @click.stop="deleteMaterial(material)">🗑️</button>
           </div>
@@ -353,6 +354,9 @@
           <button class="btn-primary" @click="showExerciseTypeModal = true">
             {{ iconStyle === 'cute' ? '📝' : '✏️' }} 开始练习
           </button>
+          <button class="btn-secondary" @click="startEdit(selectedMaterial)">
+            {{ iconStyle === 'cute' ? '✏️' : '✏️' }} 编辑
+          </button>
           <button class="btn-secondary" @click="exportSingle(selectedMaterial)">
             {{ iconStyle === 'cute' ? '📤' : '⬇️' }} 导出此篇
           </button>
@@ -514,6 +518,13 @@
       v-if="showAddModal" 
       @close="showAddModal = false"
       @add="handleAdd"
+    />
+
+    <AddMaterialModal
+      v-if="showEditModal"
+      :editMaterial="editingMaterial"
+      @close="closeEdit"
+      @update="handleUpdate"
     />
   </div>
 </template>
@@ -991,6 +1002,37 @@ function handleAdd(material) {
   emit('update')
 }
 
+// 编辑相关
+const showEditModal = ref(false)
+const editingMaterial = ref(null)
+
+function startEdit(material) {
+  editingMaterial.value = { ...material }
+  showEditModal.value = true
+}
+
+function closeEdit() {
+  showEditModal.value = false
+  editingMaterial.value = null
+}
+
+function handleUpdate(updated) {
+  const materials = JSON.parse(localStorage.getItem('materials') || '[]')
+  const idx = materials.findIndex(m => m.id === editingMaterial.value.id)
+  if (idx !== -1) {
+    materials[idx] = {
+      ...materials[idx],
+      title: updated.title,
+      category: updated.category,
+      content: updated.content,
+      updatedAt: new Date().toISOString()
+    }
+    localStorage.setItem('materials', JSON.stringify(materials))
+    emit('update')
+  }
+  closeEdit()
+}
+
 const fileInputRef = ref(null)
 
 function exportSingle(mat) {
@@ -1188,6 +1230,20 @@ onUnmounted(() => {
   font-size: 12px;
   padding: 4px 12px;
   border-radius: 20px;
+}
+
+.edit-btn {
+  background: #fff3e0;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.edit-btn:hover {
+  background: #ffcc80;
 }
 
 .export-btn {

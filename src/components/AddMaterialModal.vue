@@ -1,9 +1,9 @@
 <template>
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-content">
-      <div class="modal-title">添加学习资料</div>
+      <div class="modal-title">{{ isEdit ? '编辑资料' : '添加学习资料' }}</div>
       
-      <div class="upload-section">
+      <div v-if="!isEdit" class="upload-section">
         <div class="upload-btn" @click="triggerFileInput">
           {{ iconStyle === 'cute' ? '📁' : '📂' }} 上传本地文件
         </div>
@@ -16,13 +16,13 @@
         />
       </div>
       
-      <div class="upload-section">
+      <div v-if="!isEdit" class="upload-section">
         <button class="upload-btn" @click="handleClipboard">
           {{ iconStyle === 'cute' ? '📋' : '📥' }} 从剪贴板粘贴
         </button>
       </div>
       
-      <div class="upload-section">
+      <div v-if="!isEdit" class="upload-section">
         <button class="upload-btn" @click="handleImageOCR">
           {{ iconStyle === 'cute' ? '📷' : '📸' }} 从图片提取文字
         </button>
@@ -55,34 +55,54 @@
             v-model="formData.content" 
             placeholder="输入英文内容..."
             class="form-textarea"
-            rows="6"
+            rows="8"
           ></textarea>
         </div>
       </div>
       
-      <button class="btn-primary" @click="submit">添加</button>
+      <button class="btn-primary" @click="submit">
+        {{ isEdit ? '保存修改' : '添加' }}
+      </button>
       <button class="btn-secondary" @click="$emit('close')">取消</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, computed } from 'vue'
 
-defineProps({
+const props = defineProps({
   iconStyle: {
     type: String,
     default: 'cute'
+  },
+  editMaterial: {
+    type: Object,
+    default: null
   }
 })
 
-const emit = defineEmits(['close', 'add'])
+const emit = defineEmits(['close', 'add', 'update'])
+
+const isEdit = computed(() => !!props.editMaterial)
 
 const formData = ref({
   title: '',
   category: '文章',
   content: ''
 })
+
+watch(() => props.editMaterial, (val) => {
+  if (val) {
+    formData.value = {
+      title: val.title || '',
+      category: val.category || '文章',
+      content: val.content || ''
+    }
+  } else {
+    formData.value = { title: '', category: '文章', content: '' }
+  }
+}, { immediate: true })
 
 function triggerFileInput() {
   document.getElementById('file-input').click()
@@ -149,8 +169,12 @@ function submit() {
     return
   }
   
-  emit('add', { ...formData.value })
-  formData.value = { title: '', category: '文章', content: '' }
+  if (isEdit.value) {
+    emit('update', { ...formData.value })
+  } else {
+    emit('add', { ...formData.value })
+    formData.value = { title: '', category: '文章', content: '' }
+  }
 }
 </script>
 
@@ -172,7 +196,7 @@ function submit() {
   border-radius: 20px 20px 0 0;
   padding: 24px;
   width: 100%;
-  max-height: 85vh;
+  max-height: 90vh;
   overflow-y: auto;
 }
 
@@ -234,6 +258,7 @@ function submit() {
   border-radius: 10px;
   font-size: 16px;
   background: #fafafa;
+  box-sizing: border-box;
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
@@ -243,7 +268,9 @@ function submit() {
 }
 
 .form-textarea {
-  resize: none;
+  resize: vertical;
+  min-height: 200px;
+  line-height: 1.6;
 }
 
 .btn-primary {
