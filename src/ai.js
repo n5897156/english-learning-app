@@ -402,3 +402,110 @@ export async function assessLevel() {
 
   return parseJSON(result)
 }
+
+// ========== 文本训练（粘贴文章→朗读→中英对照→考核）==========
+
+/**
+ * AI 从文章中提取关键句子，生成中英对照训练数据
+ * @param {string} content 英文文章内容
+ * @param {object} options { count: 提取句子数, level: 学习者水平 }
+ */
+export async function extractSentencesForTraining(content, options = {}) {
+  const count = options.count || 8
+  const level = options.level || getAdaptiveLevel()
+
+  const prompt = `你是一位专业的英语教学专家。请从以下英文文章中提取 ${count} 个最有学习价值的关键句子（不要整篇翻译，只挑重点），并给出中文翻译和考核数据。
+
+文章内容：
+${content}
+
+学习者当前水平：${level}
+
+返回 JSON 格式（不要包含其他文字）：
+{
+  "title": "文章主题简述（中文，10字内）",
+  "difficulty": "初级|中级|高级",
+  "sentences": [
+    {
+      "id": 1,
+      "english": "英文原句（保持原文，不修改）",
+      "chinese": "准确的中文翻译",
+      "keyWords": ["关键单词1", "关键单词2"],
+      "note": "这句话的语法点或用法说明（中文，简短）"
+    }
+  ]
+}`
+
+  const result = await callAI([
+    { role: 'system', content: '你是英语教学专家，擅长从文章中提取高价值句子用于学习者训练。始终返回纯 JSON。' },
+    { role: 'user', content: prompt }
+  ], { temperature: 0.3, maxTokens: 3072 })
+
+  return parseJSON(result)
+}
+
+/**
+ * AI 评估用户的英译（看中文写英文）或听写答案
+ * @param {string} originalEnglish 原英文句子
+ * @param {string} userAnswer 用户输入的英文
+ */
+export async function checkTranslationAnswer(originalEnglish, userAnswer) {
+  const prompt = `请评估用户的英文翻译/听写答案是否正确。
+
+原英文句子：${originalEnglish}
+用户答案：${userAnswer}
+
+要求宽松一些：拼写小错、标点、大小写差异不算错，但语法错误、漏词、词序错误要算错。
+
+返回 JSON 格式（不要包含其他文字）：
+{
+  "correct": true|false,
+  "score": 1-10,
+  "feedback": "简短中文反馈（指出错误或表扬）",
+  "errors": [
+    {
+      "userText": "用户写错的部分",
+      "correctText": "正确的写法",
+      "reason": "错误原因（中文）"
+    }
+  ]
+}`
+
+  const result = await callAI([
+    { role: 'system', content: '你是英语教学评估专家。评估要宽容但准确。始终返回纯 JSON。' },
+    { role: 'user', content: prompt }
+  ], { temperature: 0.2, maxTokens: 1024 })
+
+  return parseJSON(result)
+}
+
+/**
+ * 为句子生成填空题（挖掉关键单词）
+ * @param {string} english 英文句子
+ * @param {string[]} keyWords 关键词列表
+ */
+export async function generateClozeExercise(english, keyWords = []) {
+  const prompt = `请为以下英文句子生成一道填空题，挖掉 1-2 个关键单词。
+
+英文句子：${english}
+候选关键词：${keyWords.join(', ') || '无'}
+
+返回 JSON 格式（不要包含其他文字）：
+{
+  "question": "带空格的句子（用 ____ 表示空格）",
+  "blanks": [
+    {
+      "answer": "正确答案",
+      "options": ["正确答案", "干扰项1", "干扰项2", "干扰项3"]
+    }
+  ],
+  "hint": "中文提示"
+}`
+
+  const result = await callAI([
+    { role: 'system', content: '你是英语出题专家。始终返回纯 JSON。' },
+    { role: 'user', content: prompt }
+  ], { temperature: 0.4, maxTokens: 768 })
+
+  return parseJSON(result)
+}

@@ -7,22 +7,27 @@
 
 const UPSTREAM = 'https://integrate.api.nvidia.com'
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  'Access-Control-Max-Age': '86400'
+}
+
 export default {
   async fetch(request, env, ctx) {
+    // 处理 CORS 预检请求（浏览器发送 POST 带自定义头前会先发 OPTIONS）
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: CORS_HEADERS })
+    }
+
     // 只允许 POST 请求
     if (request.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
       })
     }
-
-    // 只允许我们的站点来源（可选，提高安全性）
-    // const allowedOrigins = ['https://n5897156.github.io', 'http://localhost:4173', 'http://localhost:5173']
-    // const origin = request.headers.get('Origin') || ''
-    // if (!allowedOrigins.includes(origin)) {
-    //   return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
-    // }
 
     // 构造目标 URL
     const url = new URL(request.url)
@@ -50,10 +55,7 @@ export default {
         statusText: response.statusText,
         headers: {
           'Content-Type': response.headers.get('Content-Type') || 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-          'Access-Control-Max-Age': '86400'
+          ...CORS_HEADERS
         }
       })
     } catch (err) {
@@ -61,7 +63,7 @@ export default {
         status: 502,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
+          ...CORS_HEADERS
         }
       })
     }
