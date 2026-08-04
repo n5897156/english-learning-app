@@ -242,6 +242,9 @@ onMounted(() => {
  if (e.key === 'vocab')
  loadVocab();
  });
+ window.addEventListener('switch-tab', (e) => {
+ if (e.detail) currentTab.value = e.detail;
+ });
 });
 </script>
 

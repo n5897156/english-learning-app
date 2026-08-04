@@ -131,37 +131,38 @@
 
     <!-- 文本训练 -->
     <div v-if="activeTab === 'text'" class="text-section">
-      <!-- 输入区 -->
+      <!-- 资料选择区 -->
       <div v-if="!textAnalysis" class="text-input-area">
-        <div class="section-title">{{ iconStyle === 'cute' ? '📄' : '📑' }} 粘贴英文文章</div>
-        <div class="text-desc">复制一段英文文章、新闻、邮件或任何想学的文本，AI 会提取关键句子生成中英对照训练</div>
+        <div class="section-title">{{ iconStyle === 'cute' ? '📚' : '📑' }} 选择要训练的资料</div>
+        <div class="text-desc">从资料库中选择一篇文章，AI 会提取关键句子生成中英对照训练</div>
 
-        <textarea
-          v-model="rawText"
-          class="text-textarea"
-          placeholder="在这里粘贴英文文章...&#10;&#10;例如：&#10;The best way to learn English is to practice every day. Reading, writing, listening, and speaking are all important skills..."
-          rows="8"
-        ></textarea>
-
-        <div class="text-options">
-          <label class="option-label">
-            提取句数：
-            <select v-model="extractCount" class="option-select">
-              <option :value="5">5 句</option>
-              <option :value="8">8 句</option>
-              <option :value="10">10 句</option>
-              <option :value="15">15 句</option>
-            </select>
-          </label>
+        <div v-if="savedMaterials.length === 0" class="empty-materials">
+          <div class="empty-icon">{{ iconStyle === 'cute' ? '📭' : '📭' }}</div>
+          <div>资料库还是空的</div>
+          <div class="empty-hint">请先到「资料」tab 添加文章</div>
+          <button class="btn-primary" @click="goToMaterials">
+            {{ iconStyle === 'cute' ? '📚 去资料tab' : '去资料tab' }}
+          </button>
         </div>
 
-        <button
-          class="btn-primary"
-          @click="analyzeText"
-          :disabled="!rawText.trim() || isAnalyzingText"
-        >
-          {{ isAnalyzingText ? 'AI 分析中...' : (iconStyle === 'cute' ? '🚀 开始分析提取' : '开始分析') }}
-        </button>
+        <div v-else class="materials-picker">
+          <div
+            v-for="mat in savedMaterials"
+            :key="mat.id"
+            class="material-picker-item"
+            @click="selectMaterialForTraining(mat)"
+          >
+            <div class="picker-title">{{ mat.title || '无标题文章' }}</div>
+            <div class="picker-preview">{{ getPreview(mat.content) }}</div>
+            <div class="picker-meta">
+              <span>{{ (mat.content || '').length }} 字</span>
+              <span>{{ mat.createdAt ? formatDate(mat.createdAt) : '' }}</span>
+            </div>
+            <button class="btn-primary small">
+              {{ iconStyle === 'cute' ? '🚀 开始训练' : '开始训练' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- 分析中 -->
@@ -592,6 +593,45 @@ const textAnalysis = ref(null)
 const isAnalyzingText = ref(false)
 const textMode = ref('browse') // browse | translate | dictation | cloze
 
+// 从 localStorage 加载资料
+const savedMaterials = ref([])
+function loadMaterials() {
+  savedMaterials.value = JSON.parse(localStorage.getItem('materials') || '[]')
+}
+loadMaterials()
+
+// 选择资料进行训练
+async function selectMaterialForTraining(mat) {
+  if (!mat.content || !mat.content.trim()) {
+    showError('这篇文章没有内容')
+    return
+  }
+  rawText.value = mat.content
+  await analyzeText()
+}
+
+// 内容预览
+function getPreview(content) {
+  if (!content) return ''
+  const text = content.replace(/\s+/g, ' ').trim()
+  return text.length > 80 ? text.slice(0, 80) + '...' : text
+}
+
+// 格式化日期
+function formatDate(iso) {
+  try {
+    const d = new Date(iso)
+    return `${d.getMonth() + 1}/${d.getDate()}`
+  } catch {
+    return ''
+  }
+}
+
+// 跳转到资料tab
+function goToMaterials() {
+  window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'materials' }))
+}
+
 // 朗读全部句子
 const isSpeakingAll = ref(false)
 const currentSpeakIndex = ref(-1)
@@ -948,6 +988,7 @@ function resetTextAnalysis() {
   textAnalysis.value = null
   rawText.value = ''
   resetTextTrainingState()
+  loadMaterials()
 }
 
 // 慢速朗读
@@ -2481,5 +2522,93 @@ async function scrollToBottom() {
   color: #333;
   font-weight: 500;
   margin-bottom: 20px;
+}
+
+/* ========== 资料选择器 ========== */
+.empty-materials {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.empty-materials .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-materials > div:nth-child(2) {
+  font-size: 15px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.empty-materials .empty-hint {
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 20px;
+}
+
+.empty-materials .btn-primary {
+  display: inline-block;
+}
+
+.materials-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.material-picker-item {
+  background: white;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.material-picker-item:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 12px rgba(102, 126, 234, 0.1);
+}
+
+.picker-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-preview {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.picker-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 10px;
+}
+
+.material-picker-item .btn-primary.small {
+  width: 100%;
+  padding: 8px;
+  font-size: 13px;
+}
+
+.btn-primary.small {
+  padding: 8px 16px;
+  font-size: 13px;
 }
 </style>
