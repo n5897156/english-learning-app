@@ -509,3 +509,71 @@ export async function generateClozeExercise(english, keyWords = []) {
 
   return parseJSON(result)
 }
+
+/**
+ * 从文章中提取句子并生成造句练习（打乱单词顺序）
+ * @param {string} content 文章内容
+ * @param {number} count 生成的练习题数量
+ */
+export async function generateSentenceExerciseFromArticle(content, count = 5) {
+  const prompt = `请从以下英文文章中提取 ${count} 个关键句子，为每个句子生成"单词排列"练习（打乱句子的单词顺序）。
+
+文章内容：${content.slice(0, 3000)}
+
+返回 JSON 格式（不要包含其他文字）：
+{
+  "exercises": [
+    {
+      "sentence": "正确的英文句子（不打乱）",
+      "translation": "中文翻译",
+      "jumbled": ["打乱顺序后的单词数组（保持原词形）"],
+      "hint": "中文提示（描述场景或主题）",
+      "keyWord": "目标关键词"
+    }
+  ]
+}`
+
+  const result = await callAI([
+    { role: 'system', content: '你是英语教学专家。始终返回纯 JSON。jumbled 数组中的单词必须是原句单词的打乱顺序，保持词形不变（如动词时态、名词单复数）。' },
+    { role: 'user', content: prompt }
+  ], { temperature: 0.4, maxTokens: 2048 })
+
+  return parseJSON(result)
+}
+
+/**
+ * 从文章中生成语法纠错练习（在原句中故意注入语法错误）
+ * @param {string} content 文章内容
+ * @param {number} count 练习题数量
+ */
+export async function generateGrammarExerciseFromArticle(content, count = 5) {
+  const prompt = `请从以下英文文章中选取 ${count} 个关键句子，在每个句子中故意注入 1-2 处典型语法错误（如时态错误、主谓不一致、介词误用、冠词错误、单复数错误等），让学习者找出并纠正。
+
+文章内容：${content.slice(0, 3000)}
+
+返回 JSON 格式（不要包含其他文字）：
+{
+  "exercises": [
+    {
+      "sentenceWithError": "带有语法错误的句子（学习者看到的版本）",
+      "correctSentence": "正确的原版句子",
+      "translation": "中文翻译（帮助理解）",
+      "errors": [
+        {
+          "errorText": "错误部分的原文",
+          "correction": "正确写法",
+          "explanation": "错误原因（中文，如：时态错误，文章是过去时）"
+        }
+      ],
+      "hint": "提示（如：注意时态/介词/冠词等）"
+    }
+  ]
+}`
+
+  const result = await callAI([
+    { role: 'system', content: '你是英语语法教学专家。始终返回纯 JSON。注入的错误应该是中国学习者常犯的典型错误，不要太容易也不要太晦涩。' },
+    { role: 'user', content: prompt }
+  ], { temperature: 0.4, maxTokens: 2048 })
+
+  return parseJSON(result)
+}

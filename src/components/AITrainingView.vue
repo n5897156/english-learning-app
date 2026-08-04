@@ -375,35 +375,31 @@
 
     <!-- 造句训练 -->
     <div v-if="activeTab === 'sentence'" class="sentence-section">
-      <div class="section-header">
-        <div class="section-title">{{ iconStyle === 'cute' ? '🧩' : '🔤' }} 造句训练</div>
-        <button class="btn-secondary small" @click="loadSentenceExercise" :disabled="isLoadingExercise">
-          {{ isLoadingExercise ? '加载中...' : '换一题' }}
-        </button>
-      </div>
-
-      <div v-if="!currentExercise && !isLoadingExercise" class="empty-state">
-        <div class="empty-icon">{{ iconStyle === 'cute' ? '🎯' : '📝' }}</div>
-        <div>点击下方按钮开始造句</div>
-        <button class="btn-primary" @click="loadSentenceExercise">
-          {{ iconStyle === 'cute' ? '🚀 开始练习' : '开始练习' }}
-        </button>
+      <div v-if="!sentenceExercise && !isLoadingExercise" class="picker-wrapper">
+        <div class="section-header">
+          <div class="section-title">{{ iconStyle === 'cute' ? '🧩' : '🔤' }} 造句训练</div>
+        </div>
+        <div class="text-desc">选择一篇文章，AI 会从文中提取关键句子，打乱单词顺序让你重新排列</div>
+        <MaterialPicker button-text="🎯 开始造句" @select="onSentenceMaterialSelected" />
       </div>
 
       <div v-if="isLoadingExercise" class="loading-state">
         <div class="loading-spinner"></div>
-        <div>AI 正在生成练习...</div>
+        <div>AI 正在从文章中提取句子并生成练习...</div>
       </div>
 
-      <div v-if="currentExercise" class="exercise-card">
-        <div class="exercise-hint">
-          <span class="hint-label">提示：</span>{{ currentExercise.hint }}
+      <div v-if="sentenceExercise" class="exercise-card">
+        <div class="exercise-header">
+          <button class="btn-back" @click="backToSentencePicker">← 换文章</button>
+          <div class="exercise-progress">第 {{ sentenceIdx + 1 }} / {{ sentenceExercises.length }} 题</div>
         </div>
-        <div v-if="currentExercise.word" class="target-word">
-          目标单词：<strong>{{ currentExercise.word }}</strong>
+        <div class="exercise-hint">
+          <span class="hint-label">提示：</span>{{ sentenceExercises[sentenceIdx].hint }}
+        </div>
+        <div v-if="sentenceExercises[sentenceIdx].keyWord" class="target-word">
+          目标单词：<strong>{{ sentenceExercises[sentenceIdx].keyWord }}</strong>
         </div>
 
-        <!-- 已排列的单词区 -->
         <div class="arranged-area">
           <div class="area-label">你的句子：</div>
           <div class="words-container arranged">
@@ -419,7 +415,6 @@
           </div>
         </div>
 
-        <!-- 可选单词区 -->
         <div class="jumbled-area">
           <div class="area-label">可选单词：</div>
           <div class="words-container jumbled">
@@ -443,8 +438,8 @@
           <div class="result-detail">
             <div><strong>你的答案：</strong>{{ sentenceResult.userAnswer }}</div>
             <div v-if="!sentenceResult.correct"><strong>正确答案：</strong>{{ sentenceResult.correctAnswer }}</div>
-            <div v-if="currentExercise.sentenceTranslation" class="translation">
-              {{ currentExercise.sentenceTranslation }}
+            <div v-if="sentenceExercises[sentenceIdx].translation" class="translation">
+              {{ sentenceExercises[sentenceIdx].translation }}
             </div>
           </div>
         </div>
@@ -458,8 +453,8 @@
           >
             {{ iconStyle === 'cute' ? '✓ 检查答案' : '检查答案' }}
           </button>
-          <button v-else class="btn-primary" @click="resetExercise">
-            {{ iconStyle === 'cute' ? '🔄 下一题' : '下一题' }}
+          <button v-else class="btn-primary" @click="nextSentenceExercise">
+            {{ sentenceIdx + 1 < sentenceExercises.length ? (iconStyle === 'cute' ? '下一题 →' : '下一题') : '完成 🎊' }}
           </button>
           <button class="btn-secondary" @click="resetExercise">
             {{ iconStyle === 'cute' ? '🔁 重置' : '重置' }}
@@ -468,60 +463,79 @@
       </div>
     </div>
 
-    <!-- 语法检查 -->
+    <!-- 语法训练 -->
     <div v-if="activeTab === 'grammar'" class="grammar-section">
-      <div class="section-title">{{ iconStyle === 'cute' ? '✏️' : '📝' }} 语法检查</div>
-      <div class="grammar-desc">输入一段英文，AI 会帮你检查语法错误并给出修改建议</div>
+      <div v-if="!grammarExercise && !isCheckingGrammar" class="picker-wrapper">
+        <div class="section-header">
+          <div class="section-title">{{ iconStyle === 'cute' ? '✏️' : '📝' }} 语法训练</div>
+        </div>
+        <div class="text-desc">选择一篇文章，AI 会从文中提取句子并故意注入语法错误，让你找出并纠正</div>
+        <MaterialPicker button-text="🔍 开始语法训练" @select="onGrammarMaterialSelected" />
+      </div>
 
-      <textarea
-        v-model="grammarInput"
-        class="grammar-textarea"
-        placeholder="请输入英文，例如：Yesterday I goes to school..."
-        rows="6"
-      ></textarea>
+      <div v-if="isCheckingGrammar && !grammarExercise" class="loading-state">
+        <div class="loading-spinner"></div>
+        <div>AI 正在从文章中生成语法练习题...</div>
+      </div>
 
-      <button
-        class="btn-primary"
-        @click="checkGrammar"
-        :disabled="!grammarInput.trim() || isCheckingGrammar"
-      >
-        {{ isCheckingGrammar ? '检查中...' : (iconStyle === 'cute' ? '🔍 检查语法' : '检查语法') }}
-      </button>
-
-      <div v-if="grammarResult" class="grammar-result">
-        <div class="result-summary-box">
-          <div class="score-display">
-            <div class="score-label">语法评分</div>
-            <div class="score-number">{{ grammarResult.overallScore }}/10</div>
-          </div>
-          <div class="feedback-text">{{ grammarResult.feedback }}</div>
+      <div v-if="grammarExercise" class="grammar-exercise-card">
+        <div class="exercise-header">
+          <button class="btn-back" @click="backToGrammarPicker">← 换文章</button>
+          <div class="exercise-progress">第 {{ grammarIdx + 1 }} / {{ grammarExercises.length }} 题</div>
         </div>
 
-        <div v-if="grammarResult.errors && grammarResult.errors.length > 0" class="errors-list">
-          <div class="errors-title">
-            {{ iconStyle === 'cute' ? '⚠️' : '!' }} 发现 {{ grammarResult.errors.length }} 处错误
+        <div class="grammar-hint-box">
+          <span class="hint-label">💡 提示：</span>{{ grammarExercises[grammarIdx].hint }}
+        </div>
+
+        <div class="grammar-sentence-box">
+          <div class="grammar-question-label">以下句子有 1-2 处语法错误，请找出并纠正：</div>
+          <div class="grammar-sentence">{{ grammarExercises[grammarIdx].sentenceWithError }}</div>
+          <div v-if="grammarExercises[grammarIdx].translation" class="grammar-translation">
+            {{ grammarExercises[grammarIdx].translation }}
           </div>
-          <div
-            v-for="(err, index) in grammarResult.errors"
-            :key="index"
-            class="error-item"
+        </div>
+
+        <textarea
+          v-model="grammarUserAnswer"
+          class="grammar-textarea"
+          placeholder="在这里写出正确的句子..."
+          rows="3"
+          :disabled="grammarResult"
+        ></textarea>
+
+        <div v-if="!grammarResult" class="grammar-actions">
+          <button
+            class="btn-primary"
+            @click="submitGrammarAnswer"
+            :disabled="!grammarUserAnswer.trim() || isCheckingAnswer"
           >
-            <div class="error-original">
-              <span class="error-tag">原文</span>
-              <span class="error-text wrong">{{ err.original }}</span>
-            </div>
-            <div class="error-arrow">↓</div>
-            <div class="error-correction">
-              <span class="error-tag">修改</span>
-              <span class="error-text right">{{ err.correction }}</span>
-            </div>
-            <div class="error-explanation">{{ err.explanation }}</div>
-          </div>
+            {{ isCheckingAnswer ? 'AI 评估中...' : '提交答案' }}
+          </button>
+          <button class="btn-secondary" @click="skipGrammar">跳过 →</button>
         </div>
 
-        <div v-else class="no-errors">
-          <div class="no-errors-icon">{{ iconStyle === 'cute' ? '🎉' : '✓' }}</div>
-          <div>没有发现语法错误，写得很好！</div>
+        <div v-if="grammarResult" :class="['grammar-result', grammarResult.correct ? 'correct' : 'incorrect']">
+          <div class="result-icon">{{ grammarResult.correct ? '🎉' : '😅' }}</div>
+          <div class="result-text">{{ grammarResult.correct ? '回答正确！' : '还有问题' }}</div>
+          <div class="result-detail">
+            <div><strong>原句（有错）：</strong>{{ grammarExercises[grammarIdx].sentenceWithError }}</div>
+            <div><strong>正确答案：</strong>{{ grammarExercises[grammarIdx].correctSentence }}</div>
+            <div><strong>你的答案：</strong>{{ grammarUserAnswer }}</div>
+            <div v-if="grammarExercises[grammarIdx].errors" class="errors-detail">
+              <div class="errors-title">📋 错误解析：</div>
+              <div v-for="(err, i) in grammarExercises[grammarIdx].errors" :key="i" class="error-row">
+                <div>❌ {{ err.errorText }} → ✅ {{ err.correction }}</div>
+                <div class="error-reason">💭 {{ err.explanation }}</div>
+              </div>
+            </div>
+            <div v-if="grammarResult.feedback" class="feedback">{{ grammarResult.feedback }}</div>
+          </div>
+          <div class="exercise-actions">
+            <button class="btn-primary" @click="nextGrammarExercise">
+              {{ grammarIdx + 1 < grammarExercises.length ? '下一题 →' : '完成 🎊' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -537,15 +551,17 @@
 import { ref, nextTick } from 'vue'
 import {
   chatPractice,
-  sentencePractice,
   grammarCheck,
   getAdaptiveStats,
   recordExerciseResult,
   getAdaptiveLevel,
   extractSentencesForTraining,
   checkTranslationAnswer,
-  generateClozeExercise
+  generateClozeExercise,
+  generateSentenceExerciseFromArticle,
+  generateGrammarExerciseFromArticle
 } from '../ai.js'
+import MaterialPicker from './MaterialPicker.vue'
 
 const props = defineProps({
   iconStyle: {
@@ -574,17 +590,23 @@ const isListening = ref(false)
 const isAiResponding = ref(false)
 const speechSupported = ref(false)
 
-// 造句训练状态
-const currentExercise = ref(null)
+// 造句训练状态（基于文章）
+const sentenceExercise = ref(null)
+const sentenceExercises = ref([])
+const sentenceIdx = ref(0)
 const jumbledWords = ref([])
 const arrangedWords = ref([])
 const sentenceResult = ref(null)
 const isLoadingExercise = ref(false)
 
-// 语法检查状态
-const grammarInput = ref('')
+// 语法训练状态（基于文章）
+const grammarExercise = ref(null)
+const grammarExercises = ref([])
+const grammarIdx = ref(0)
+const grammarUserAnswer = ref('')
 const grammarResult = ref(null)
 const isCheckingGrammar = ref(false)
+const isCheckingAnswer = ref(false)
 
 // 文本训练状态
 const rawText = ref('')
@@ -827,47 +849,61 @@ function speak(text) {
   window.speechSynthesis.speak(utterance)
 }
 
-// 加载造句练习
-async function loadSentenceExercise() {
+// ========== 造句训练方法（基于文章） ==========
+
+async function onSentenceMaterialSelected(mat) {
+  if (!mat.content || !mat.content.trim()) {
+    showError('这篇文章没有内容')
+    return
+  }
   isLoadingExercise.value = true
-  currentExercise.value = null
-  arrangedWords.value = []
-  jumbledWords.value = []
-  sentenceResult.value = null
-
+  sentenceExercise.value = null
+  sentenceExercises.value = []
+  sentenceIdx.value = 0
   try {
-    // 从 localStorage 读取词汇
-    const vocab = JSON.parse(localStorage.getItem('vocab') || '[]')
-    let words = []
-
-    if (vocab.length > 0) {
-      // 随机选取 3-5 个单词
-      const shuffled = [...vocab].sort(() => Math.random() - 0.5)
-      const count = Math.min(Math.floor(Math.random() * 3) + 3, shuffled.length)
-      words = shuffled.slice(0, count).map(v => v.word)
-    } else {
-      // 没有词汇时使用默认词
-      const defaultWords = ['happy', 'morning', 'friend', 'school', 'family', 'weather', 'travel', 'book']
-      const shuffled = [...defaultWords].sort(() => Math.random() - 0.5)
-      words = shuffled.slice(0, 4)
+    const result = await generateSentenceExerciseFromArticle(mat.content, 5)
+    if (!result.exercises || result.exercises.length === 0) {
+      showError('未能从文章中提取句子，请换一篇试试')
+      return
     }
-
-    const result = await sentencePractice(words)
-    if (result.exercises && result.exercises.length > 0) {
-      const exercise = result.exercises[0]
-      currentExercise.value = exercise
-      jumbledWords.value = [...(exercise.jumbled || exercise.sentence.split(' '))]
-    } else {
-      showError('未能生成练习，请重试')
-    }
+    sentenceExercises.value = result.exercises
+    sentenceIdx.value = 0
+    initSentenceExercise()
   } catch (err) {
-    showError(err.message || '加载练习失败，请稍后重试')
+    showError(err.message || '生成造句练习失败')
   } finally {
     isLoadingExercise.value = false
   }
 }
 
-// 添加单词到已排列区
+function initSentenceExercise() {
+  if (sentenceIdx.value >= sentenceExercises.value.length) {
+    sentenceExercise.value = null
+    return
+  }
+  const exercise = sentenceExercises.value[sentenceIdx.value]
+  sentenceExercise.value = exercise
+  jumbledWords.value = [...(exercise.jumbled || exercise.sentence.split(' '))]
+  arrangedWords.value = []
+  sentenceResult.value = null
+}
+
+function backToSentencePicker() {
+  sentenceExercise.value = null
+  sentenceExercises.value = []
+  sentenceIdx.value = 0
+}
+
+function nextSentenceExercise() {
+  sentenceIdx.value++
+  if (sentenceIdx.value >= sentenceExercises.value.length) {
+    sentenceExercise.value = null
+    showError('🎉 全部完成！')
+    return
+  }
+  initSentenceExercise()
+}
+
 function addWord(index) {
   if (sentenceResult.value) return
   const word = jumbledWords.value[index]
@@ -875,7 +911,6 @@ function addWord(index) {
   jumbledWords.value.splice(index, 1)
 }
 
-// 从已排列区移除单词
 function removeWord(index) {
   if (sentenceResult.value) return
   const word = arrangedWords.value[index]
@@ -883,14 +918,11 @@ function removeWord(index) {
   arrangedWords.value.splice(index, 1)
 }
 
-// 检查句子
 function checkSentence() {
   if (arrangedWords.value.length === 0) return
-
   const userAnswer = arrangedWords.value.join(' ').trim()
-  const correctAnswer = (currentExercise.value.sentence || '').trim()
+  const correctAnswer = (sentenceExercise.value?.sentence || '').trim()
 
-  // 标准化比较：去除标点和大小写差异
   const normalize = (s) => s.replace(/[.,!?;:'"]/g, '').replace(/\s+/g, ' ').toLowerCase().trim()
   const isCorrect = normalize(userAnswer) === normalize(correctAnswer)
 
@@ -900,44 +932,86 @@ function checkSentence() {
     correctAnswer: correctAnswer
   }
 
-  // 记录练习结果
   recordExerciseResult('grammar', isCorrect)
-
-  // 更新当前水平
   currentLevel.value = getAdaptiveStats().level
 }
 
-// 重置练习
 function resetExercise() {
-  currentExercise.value = null
-  arrangedWords.value = []
-  jumbledWords.value = []
-  sentenceResult.value = null
-  loadSentenceExercise()
+  if (sentenceExercise.value) {
+    initSentenceExercise()
+  }
 }
 
-// 检查语法
-async function checkGrammar() {
-  const text = grammarInput.value.trim()
-  if (!text || isCheckingGrammar.value) return
+// ========== 语法训练方法（基于文章） ==========
 
+async function onGrammarMaterialSelected(mat) {
+  if (!mat.content || !mat.content.trim()) {
+    showError('这篇文章没有内容')
+    return
+  }
   isCheckingGrammar.value = true
+  grammarExercise.value = null
+  grammarExercises.value = []
+  grammarIdx.value = 0
+  try {
+    const result = await generateGrammarExerciseFromArticle(mat.content, 5)
+    if (!result.exercises || result.exercises.length === 0) {
+      showError('未能生成语法练习，请换一篇文章试试')
+      return
+    }
+    grammarExercises.value = result.exercises
+    grammarIdx.value = 0
+    grammarExercise.value = result.exercises[0]
+    grammarUserAnswer.value = ''
+    grammarResult.value = null
+  } catch (err) {
+    showError(err.message || '生成语法练习失败')
+  } finally {
+    isCheckingGrammar.value = false
+  }
+}
+
+function backToGrammarPicker() {
+  grammarExercise.value = null
+  grammarExercises.value = []
+  grammarIdx.value = 0
+}
+
+function nextGrammarExercise() {
+  grammarIdx.value++
+  if (grammarIdx.value >= grammarExercises.value.length) {
+    grammarExercise.value = null
+    showError('🎉 语法训练完成！')
+    return
+  }
+  grammarExercise.value = grammarExercises.value[grammarIdx.value]
+  grammarUserAnswer.value = ''
+  grammarResult.value = null
+}
+
+function skipGrammar() {
+  recordExerciseResult('grammar', false)
+  currentLevel.value = getAdaptiveStats().level
+  nextGrammarExercise()
+}
+
+async function submitGrammarAnswer() {
+  const answer = grammarUserAnswer.value.trim()
+  if (!answer || isCheckingAnswer.value) return
+
+  isCheckingAnswer.value = true
   grammarResult.value = null
 
   try {
-    const result = await grammarCheck(text)
+    const exercise = grammarExercises.value[grammarIdx.value]
+    const result = await checkTranslationAnswer(exercise.correctSentence, answer)
     grammarResult.value = result
-
-    // 记录语法练习结果
-    const hasErrors = result.errors && result.errors.length > 0
-    recordExerciseResult('grammar', !hasErrors)
-
-    // 更新当前水平
+    recordExerciseResult('grammar', result.correct)
     currentLevel.value = getAdaptiveStats().level
   } catch (err) {
-    showError(err.message || '语法检查失败，请稍后重试')
+    showError(err.message || '评估失败，请重试')
   } finally {
-    isCheckingGrammar.value = false
+    isCheckingAnswer.value = false
   }
 }
 
@@ -2610,5 +2684,152 @@ async function scrollToBottom() {
 .btn-primary.small {
   padding: 8px 16px;
   font-size: 13px;
+}
+
+/* ========== 造句/语法 训练（基于文章） ========== */
+.picker-wrapper {
+  padding: 8px 0;
+}
+
+.picker-wrapper .section-header {
+  margin-bottom: 8px;
+}
+
+.exercise-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.btn-back {
+  background: none;
+  border: none;
+  color: #667eea;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+  font-weight: 500;
+}
+
+.btn-back:hover {
+  text-decoration: underline;
+}
+
+.exercise-progress {
+  font-size: 13px;
+  color: #667eea;
+  font-weight: 600;
+}
+
+/* 语法训练卡片 */
+.grammar-exercise-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.grammar-hint-box {
+  background: #fff3e0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #e65100;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.grammar-sentence-box {
+  background: #f5f3ff;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
+
+.grammar-question-label {
+  font-size: 13px;
+  color: #7c4dff;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.grammar-sentence {
+  font-size: 17px;
+  color: #333;
+  line-height: 1.7;
+  font-weight: 500;
+  padding: 8px 0;
+}
+
+.grammar-translation {
+  font-size: 13px;
+  color: #888;
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.grammar-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.grammar-actions .btn-primary,
+.grammar-actions .btn-secondary {
+  flex: 1;
+}
+
+.grammar-result {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.grammar-result.correct {
+  background: #e8f5e9;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.grammar-result.incorrect {
+  background: #ffebee;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.errors-detail {
+  text-align: left;
+  margin-top: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+}
+
+.errors-detail .errors-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.error-row {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.6;
+  padding: 4px 0;
+}
+
+.error-reason {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+/* section-header 样式补充 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 </style>
