@@ -480,6 +480,43 @@ export async function checkTranslationAnswer(originalEnglish, userAnswer) {
 }
 
 /**
+ * 评判语音回答（用于双向语音问答训练）
+ * @param {string} question 问题（中文或英文）
+ * @param {string} answer 用户回答（英文或中文）
+ * @param {'cn2en'|'en2cn'} direction 考核方向
+ */
+export async function evaluateSpeechAnswer(question, answer, direction) {
+  const dirDesc = direction === 'cn2en' 
+    ? '系统用中文提问，用户用英文回答' 
+    : '系统用英文提问，用户用中文回答'
+  
+  const prompt = `请评估用户的语音回答是否正确。
+
+考核方向：${dirDesc}
+问题：${question}
+用户语音识别结果：${answer}
+
+注意：语音识别可能有小错误（比如漏词、发音偏差导致的拼写错误），请在评判时考虑这一点，宽容对待。
+如果用户回答的意思基本正确（允许轻微语法错误和语音识别误差），判定为正确。
+只有当回答完全错误或严重偏离时才判定为错误。
+
+返回 JSON 格式（不要包含其他文字）：
+{
+  "correct": true|false,
+  "score": 1-10,
+  "feedback": "简短中文反馈，1-2句话",
+  "expectedAnswer": "期望的正确回答"
+}`
+
+  const result = await callAI([
+    { role: 'system', content: '你是英语口语评估专家。评估要宽容但准确，考虑语音识别可能的误差。始终返回纯 JSON。' },
+    { role: 'user', content: prompt }
+  ], { temperature: 0.2, maxTokens: 1024 })
+
+  return parseJSON(result)
+}
+
+/**
  * 为句子生成填空题（挖掉关键单词）
  * @param {string} english 英文句子
  * @param {string[]} keyWords 关键词列表

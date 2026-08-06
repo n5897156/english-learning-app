@@ -110,6 +110,9 @@
           <button v-if="!aiAnalysis && !isAnalyzing" class="btn-ai" @click="runAiAnalysis">
             {{ iconStyle === 'cute' ? '🤖' : '🤖' }} AI 智能拆解文章
           </button>
+          <button v-if="!aiAnalysis && !isAnalyzing && selectedMaterial" class="btn-ai voice" @click="extractSentencesFromContent">
+            {{ iconStyle === 'cute' ? '🎯' : '🎯' }} 直接开始训练
+          </button>
 
           <div v-if="isAnalyzing" class="ai-loading">
             <div class="ai-spinner"></div>
@@ -201,6 +204,16 @@
                 <span class="mode-icon">🔲</span>
                 <span class="mode-name">填空测试</span>
                 <span class="mode-desc">AI 生成填空题</span>
+              </button>
+              <button class="training-mode-btn voice-mode" @click="startTraining('cn2en')">
+                <span class="mode-icon">🎤</span>
+                <span class="mode-name">听中说英</span>
+                <span class="mode-desc">听中文说英文(语音)</span>
+              </button>
+              <button class="training-mode-btn voice-mode" @click="startTraining('en2cn')">
+                <span class="mode-icon">🎤</span>
+                <span class="mode-name">听英说中</span>
+                <span class="mode-desc">听英文说中文(语音)</span>
               </button>
             </div>
 
@@ -336,6 +349,79 @@
                 <div class="done-icon">🎓</div>
                 <div>填空测试完成！</div>
                 <button class="btn-primary" @click="restartTraining">重新开始</button>
+              </div>
+            </div>
+
+            <!-- 语音问答训练（听中说英 / 听英说中） -->
+            <div v-if="trainingMode === 'cn2en' || trainingMode === 'en2cn'" class="voice-mode">
+              <div v-if="trainingIdx < sentenceTraining.length" class="training-card">
+                <div class="training-progress">第 {{ trainingIdx + 1 }} / {{ sentenceTraining.length }} 句</div>
+                <div class="voice-direction">
+                  {{ trainingMode === 'cn2en' ? '🎤 系统用中文提问，请用英文回答' : '🎤 系统用英文提问，请用中文回答' }}
+                </div>
+                <div class="voice-question">
+                  {{ trainingMode === 'cn2en' 
+                    ? sentenceTraining[trainingIdx].chinese 
+                    : sentenceTraining[trainingIdx].english 
+                  }}
+                </div>
+                <div class="voice-actions">
+                  <button class="btn-primary voice-speak-btn" @click="speakQuestion" :disabled="isSpeaking">
+                    {{ isSpeaking ? '🔊 朗读中...' : '🔊 播放提问' }}
+                  </button>
+                  <button 
+                    :class="['voice-record-btn', { recording: isRecording }]" 
+                    @click="toggleRecording"
+                    :disabled="isCheckingTraining"
+                  >
+                    {{ isRecording ? '🔴 停止录音' : '🎤 开始回答' }}
+                  </button>
+                </div>
+                <div v-if="transcript" class="voice-transcript">
+                  <div class="transcript-label">识别结果：</div>
+                  <div class="transcript-text">{{ transcript }}</div>
+                </div>
+                <div class="voice-input-area">
+                  <textarea
+                    v-model="voiceTextInput"
+                    class="training-input"
+                    :placeholder="trainingMode === 'cn2en' ? '或直接输入英文回答...' : '或直接输入中文回答...'"
+                    rows="2"
+                    :disabled="trainingResult"
+                  ></textarea>
+                </div>
+                <div v-if="!trainingResult && !isCheckingTraining" class="training-actions">
+                  <button 
+                    class="btn-primary" 
+                    @click="checkVoiceAnswer" 
+                    :disabled="!transcript && !voiceTextInput.trim()"
+                  >
+                    AI 评判答案
+                  </button>
+                  <button class="btn-secondary" @click="skipVoiceAnswer">
+                    跳过 / 看答案
+                  </button>
+                </div>
+                <div v-if="isCheckingTraining" class="voice-evaluating">
+                  <div class="ai-spinner"></div>
+                  <span>AI 正在评判中...</span>
+                </div>
+                <div v-if="trainingResult" :class="['training-result', trainingResult.correct ? 'correct' : 'incorrect']">
+                  <div class="result-icon">{{ trainingResult.correct ? '🎉' : '😅' }}</div>
+                  <div class="result-text">{{ trainingResult.correct ? '回答正确！' : '回答不太对' }}</div>
+                  <div class="result-detail">
+                    <div><strong>期望答案：</strong>{{ trainingMode === 'cn2en' ? sentenceTraining[trainingIdx].english : sentenceTraining[trainingIdx].chinese }}</div>
+                    <div v-if="transcript"><strong>你的语音：</strong>{{ transcript }}</div>
+                    <div v-if="voiceTextInput"><strong>你的输入：</strong>{{ voiceTextInput }}</div>
+                    <div class="feedback">{{ trainingResult.feedback }}</div>
+                  </div>
+                  <button class="btn-primary" @click="nextTraining">下一句 →</button>
+                </div>
+              </div>
+              <div v-else class="all-done">
+                <div class="done-icon">🎊</div>
+                <div>语音训练完成！</div>
+                <button class="btn-primary" @click="restartTraining">重新训练</button>
               </div>
             </div>
           </div>
@@ -554,7 +640,7 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import AddMaterialModal from './AddMaterialModal.vue'
-import { analyzeArticle, generateComprehensionQuestions, recordExerciseResult, checkTranslationAnswer, generateClozeExercise } from '../ai.js'
+import { analyzeArticle, generateComprehensionQuestions, recordExerciseResult, checkTranslationAnswer, generateClozeExercise, evaluateSpeechAnswer } from '../ai.js'
 
 const props = defineProps({
   materials: {
@@ -605,6 +691,14 @@ const clozeExercise = ref(null)
 const clozeLoading = ref(false)
 const clozeSelected = ref(-1)
 const clozeResult = ref(null)
+
+// 语音训练状态
+const isSpeaking = ref(false)
+const isRecording = ref(false)
+const transcript = ref('')
+const voiceTextInput = ref('')
+let recognition = null
+let shouldStopRecording = false
 
 const filteredMaterials = computed(() => {
   if (!searchQuery.value) return props.materials
@@ -919,8 +1013,16 @@ function startTraining(mode) {
   clozeExercise.value = null
   clozeResult.value = null
   clozeSelected.value = -1
+  transcript.value = ''
+  voiceTextInput.value = ''
+  isSpeaking.value = false
+  isRecording.value = false
   if (mode === 'cloze') {
     loadClozeExercise()
+  }
+  // 语音模式自动播放问题
+  if (mode === 'cn2en' || mode === 'en2cn') {
+    setTimeout(() => speakQuestion(), 300)
   }
 }
 
@@ -952,10 +1054,19 @@ function nextTraining() {
   trainingAnswer.value = ''
   trainingResult.value = null
   showDictationHint.value = false
+  transcript.value = ''
+  voiceTextInput.value = ''
+  isRecording.value = false
   if (trainingMode.value === 'cloze') {
     clozeSelected.value = -1
     clozeResult.value = null
     loadClozeExercise()
+  }
+  // 语音模式自动播放下一题
+  if (trainingMode.value === 'cn2en' || trainingMode.value === 'en2cn') {
+    if (trainingIdx.value < sentenceTraining.value.length) {
+      setTimeout(() => speakQuestion(), 300)
+    }
   }
 }
 
@@ -966,8 +1077,14 @@ function restartTraining() {
   showDictationHint.value = false
   clozeSelected.value = -1
   clozeResult.value = null
+  transcript.value = ''
+  voiceTextInput.value = ''
+  isRecording.value = false
   if (trainingMode.value === 'cloze') {
     loadClozeExercise()
+  }
+  if (trainingMode.value === 'cn2en' || trainingMode.value === 'en2cn') {
+    setTimeout(() => speakQuestion(), 300)
   }
 }
 
@@ -1004,6 +1121,197 @@ function selectClozeOption(idx) {
   const correct = idx === clozeExercise.value.blanks[0].correctIdx
   clozeResult.value = { correct }
   recordExerciseResult('vocabulary', correct)
+}
+
+// ========== 句子提取（从 markdown 内容直接提取） ==========
+function extractSentencesFromContent() {
+  if (!selectedMaterial.value) return
+  const content = selectedMaterial.value.content
+  const lines = content.split('\n')
+  const extracted = []
+  let currentZh = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    // 匹配 ## 开头的中文标题行: ## 1. 你去哪了
+    const zhMatch = line.match(/^#{1,6}\s*\d*\.?\s*(.+)/)
+    if (zhMatch) {
+      currentZh = zhMatch[1].trim()
+      // 检查下一行是否是英文
+      const nextLine = lines[i + 1]?.trim() || ''
+      const enMatch = nextLine.match(/^\*\*(.+)\*\*$/)
+      if (enMatch) {
+        extracted.push({
+          id: extracted.length + 1,
+          chinese: currentZh,
+          english: enMatch[1].trim(),
+          keyWords: [],
+          note: ''
+        })
+        currentZh = null
+        i++ // skip the english line
+      }
+    }
+  }
+
+  // 如果没有提取到，尝试更宽松的匹配
+  if (extracted.length === 0) {
+    // 尝试按中英文交替行解析
+    const cleanLines = lines.map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+    for (let i = 0; i < cleanLines.length - 1; i += 2) {
+      const zh = cleanLines[i]
+      const en = cleanLines[i + 1]
+      if (zh && en) {
+        extracted.push({
+          id: extracted.length + 1,
+          chinese: zh.replace(/^\d+[\.、)]\s*/, ''),
+          english: en.replace(/^\d+[\.、)]\s*/, ''),
+          keyWords: [],
+          note: ''
+        })
+      }
+    }
+  }
+
+  if (extracted.length === 0) {
+    alert('未能从内容中提取到句子结构，请先使用 AI 分析功能')
+    return
+  }
+
+  sentenceTraining.value = extracted
+  trainingMode.value = ''
+  trainingIdx.value = 0
+  trainingAnswer.value = ''
+  trainingResult.value = null
+  showDictationHint.value = false
+  clozeExercise.value = null
+  clozeResult.value = null
+  transcript.value = ''
+  voiceTextInput.value = ''
+}
+
+// ========== 语音训练方法 ==========
+
+function speakQuestion() {
+  if (!sentenceTraining.value || trainingIdx.value >= sentenceTraining.value.length) return
+  const sentence = sentenceTraining.value[trainingIdx.value]
+  const text = trainingMode.value === 'cn2en' ? sentence.chinese : sentence.english
+  const lang = trainingMode.value === 'cn2en' ? 'zh-CN' : 'en-US'
+  
+  if (!('speechSynthesis' in window)) {
+    alert('您的浏览器不支持语音合成')
+    return
+  }
+  
+  isSpeaking.value = true
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = lang
+  utterance.rate = speechRate.value
+  utterance.onend = () => { isSpeaking.value = false }
+  utterance.onerror = () => { isSpeaking.value = false }
+  window.speechSynthesis.speak(utterance)
+}
+
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+  if (!SpeechRecognition) {
+    alert('您的浏览器不支持语音识别。请使用 Chrome/Edge 浏览器，或直接使用文本输入框回答。')
+    return null
+  }
+  
+  const rec = new SpeechRecognition()
+  rec.lang = trainingMode.value === 'cn2en' ? 'en-US' : 'zh-CN'
+  rec.continuous = false
+  rec.interimResults = true
+  
+  let finalText = ''
+  
+  rec.onresult = (event) => {
+    let interimText = ''
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i]
+      if (result.isFinal) {
+        finalText += result[0].transcript
+      } else {
+        interimText += result[0].transcript
+      }
+    }
+    transcript.value = finalText + interimText
+  }
+  
+  rec.onerror = (event) => {
+    console.error('语音识别错误:', event.error)
+    isRecording.value = false
+    if (event.error === 'not-allowed') {
+      alert('请允许浏览器使用麦克风权限')
+    }
+  }
+  
+  rec.onend = () => {
+    isRecording.value = false
+    if (finalText && !transcript.value) {
+      transcript.value = finalText
+    }
+  }
+  
+  return rec
+}
+
+function toggleRecording() {
+  if (isRecording.value) {
+    shouldStopRecording = true
+    if (recognition) {
+      try { recognition.stop() } catch {}
+    }
+    isRecording.value = false
+  } else {
+    transcript.value = ''
+    recognition = initSpeechRecognition()
+    if (!recognition) return
+    
+    try {
+      shouldStopRecording = false
+      isRecording.value = true
+      recognition.start()
+    } catch (err) {
+      console.error('启动语音识别失败:', err)
+      isRecording.value = false
+    }
+  }
+}
+
+async function checkVoiceAnswer() {
+  const userAnswer = transcript.value.trim() || voiceTextInput.value.trim()
+  if (!userAnswer) return
+  
+  const sentence = sentenceTraining.value[trainingIdx.value]
+  const question = trainingMode.value === 'cn2en' ? sentence.chinese : sentence.english
+  const direction = trainingMode.value
+  
+  isCheckingTraining.value = true
+  trainingResult.value = null
+  
+  try {
+    const result = await evaluateSpeechAnswer(question, userAnswer, direction)
+    trainingResult.value = result
+    recordExerciseResult('grammar', result.correct)
+  } catch (err) {
+    alert('评估失败: ' + err.message)
+  } finally {
+    isCheckingTraining.value = false
+  }
+}
+
+function skipVoiceAnswer() {
+  const sentence = sentenceTraining.value[trainingIdx.value]
+  const expectedAnswer = trainingMode.value === 'cn2en' ? sentence.english : sentence.chinese
+  trainingResult.value = {
+    correct: false,
+    score: 0,
+    feedback: '已跳过，请看正确答案',
+    expectedAnswer
+  }
 }
 
 function deleteMaterial(material) {
@@ -1710,6 +2018,12 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 114, 255, 0.3);
 }
 
+.btn-ai.voice {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  margin-top: 8px;
+}
+
 .btn-ai-secondary {
   width: 100%;
   padding: 14px;
@@ -2034,6 +2348,121 @@ onUnmounted(() => {
 .mode-desc {
   font-size: 12px;
   color: #999;
+}
+
+/* 语音训练模式按钮特殊样式 */
+.training-mode-btn.voice-mode {
+  border-color: #ff6b6b;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+}
+
+.training-mode-btn.voice-mode:hover {
+  border-color: #ff6b6b;
+  background: linear-gradient(135deg, #ffe8e8 0%, #ffd4d4 100%);
+}
+
+/* 语音训练样式 */
+.voice-mode {
+  padding: 8px 0;
+}
+
+.voice-direction {
+  text-align: center;
+  font-size: 14px;
+  color: #667eea;
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  border-radius: 8px;
+}
+
+.voice-question {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  line-height: 1.6;
+}
+
+.voice-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.voice-speak-btn {
+  flex: 1;
+  padding: 14px !important;
+  font-size: 15px !important;
+}
+
+.voice-record-btn {
+  flex: 1;
+  padding: 14px !important;
+  font-size: 15px !important;
+  border: 2px solid #ff6b6b;
+  background: white;
+  color: #ff6b6b;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.voice-record-btn:hover {
+  background: #fff5f5;
+}
+
+.voice-record-btn.recording {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.voice-transcript {
+  background: #e8f5e9;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.transcript-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.transcript-text {
+  font-size: 16px;
+  color: #2e7d32;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.voice-input-area {
+  margin-bottom: 12px;
+}
+
+.voice-evaluating {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: #f5f3ff;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  color: #667eea;
+  font-size: 14px;
 }
 
 .training-card, .cloze-card {
