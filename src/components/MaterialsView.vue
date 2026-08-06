@@ -7,8 +7,8 @@
       <button class="btn-secondary" @click="exportMaterials">
         {{ iconStyle === 'cute' ? '📤' : '⬇️' }} 导出
       </button>
-      <button class="btn-secondary" @click="triggerImport">
-        {{ iconStyle === 'cute' ? '📥' : '⬆️' }} 导入
+      <button class="btn-secondary" @click="showPasteImport = true">
+        {{ iconStyle === 'cute' ? '📋' : '📋' }} 粘贴导入
       </button>
       <input
         type="file"
@@ -18,7 +18,29 @@
         @change="handleImportFile"
       />
     </div>
-    <div class="toolbar-hint">💡 单篇导出：点击文章右侧 📤 按钮；批量导出：点上方「导出」</div>
+    <div class="toolbar-hint">💡 单篇导出：点击文章右侧 📤 按钮；批量导入：点「粘贴导入」粘贴 JSON</div>
+
+    <!-- 粘贴导入模态框 -->
+    <div v-if="showPasteImport" class="modal-overlay" @click.self="showPasteImport = false">
+      <div class="modal-content paste-import-modal">
+        <div class="modal-title">粘贴 JSON 导入</div>
+        <div class="paste-hint">粘贴导出的 JSON 数据，导入后会自动合并（按标题去重）</div>
+        <textarea
+          v-model="pasteJson"
+          class="paste-textarea"
+          placeholder="在此粘贴 JSON 数据..."
+          rows="8"
+        ></textarea>
+        <div class="paste-actions">
+          <button class="btn-primary" @click="importFromPaste" :disabled="!pasteJson.trim()">
+            导入
+          </button>
+          <button class="btn-secondary" @click="showPasteImport = false; pasteJson = ''">
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
     
     <div class="search-bar">
       <input 
@@ -1035,6 +1057,42 @@ function handleUpdate(updated) {
 
 const fileInputRef = ref(null)
 
+// 粘贴导入
+const showPasteImport = ref(false)
+const pasteJson = ref('')
+
+function importFromPaste() {
+  try {
+    const imported = JSON.parse(pasteJson.value.trim())
+    if (!imported.materials || !Array.isArray(imported.materials)) {
+      alert('无效的 JSON 格式，需要包含 materials 数组')
+      return
+    }
+
+    const existing = JSON.parse(localStorage.getItem('materials') || '[]')
+    const existingTitles = new Set(existing.map(m => m.title))
+
+    let addedCount = 0
+    imported.materials.forEach(m => {
+      if (!existingTitles.has(m.title)) {
+        existing.push({
+          ...m,
+          id: Date.now() + Math.random() * 1000
+        })
+        addedCount++
+      }
+    })
+
+    localStorage.setItem('materials', JSON.stringify(existing))
+    loadMaterials()
+    showPasteImport.value = false
+    pasteJson.value = ''
+    alert(`导入成功！新增 ${addedCount} 篇，跳过 ${existing.length - addedCount} 篇重复文章`)
+  } catch {
+    alert('JSON 解析失败，请检查格式')
+  }
+}
+
 function exportSingle(mat) {
   if (!mat) return
   const data = {
@@ -1143,6 +1201,52 @@ onUnmounted(() => {
 
 .file-input-hidden {
   display: none;
+}
+
+/* 粘贴导入模态框 */
+.paste-import-modal {
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.paste-hint {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.paste-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  font-family: monospace;
+  font-size: 13px;
+  resize: vertical;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+  min-height: 150px;
+}
+
+.paste-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.paste-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.paste-actions .btn-primary,
+.paste-actions .btn-secondary {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
 }
 
 .toolbar button {
