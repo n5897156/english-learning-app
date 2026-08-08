@@ -410,7 +410,7 @@
                     @click="checkVoiceAnswer" 
                     :disabled="!transcript && !voiceTextInput.trim()"
                   >
-                    AI 评判答案
+                    ✅ 检查答案
                   </button>
                   <button class="btn-secondary" @click="skipVoiceAnswer">
                     直接看答案
@@ -654,7 +654,7 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import AddMaterialModal from './AddMaterialModal.vue'
-import { analyzeArticle, generateComprehensionQuestions, recordExerciseResult, checkTranslationAnswer, generateClozeExercise, evaluateSpeechAnswer } from '../ai.js'
+import { analyzeArticle, generateComprehensionQuestions, recordExerciseResult, checkTranslationAnswer, generateClozeExercise } from '../ai.js'
 
 const props = defineProps({
   materials: {
@@ -1145,39 +1145,79 @@ function extractSentencesFromContent() {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
-    // 匹配 ## 开头的中文标题行: ## 1. 你去哪了
-    const zhMatch = line.match(/^#{1,6}\s*\d*\.?\s*(.+)/)
+    // 严格匹配 ## 1. xxx 或 ### 1. xxx 格式的条目（必须有数字序号的子标题）
+    const zhMatch = line.match(/^#{2,6}\s*\d+[\.、)]\s*(.+)$/)
     if (zhMatch) {
       currentZh = zhMatch[1].trim()
-      // 检查下一行是否是英文
+      // 检查下一行是否是 **英文**
       const nextLine = lines[i + 1]?.trim() || ''
       const enMatch = nextLine.match(/^\*\*(.+)\*\*$/)
       if (enMatch) {
-        extracted.push({
-          id: extracted.length + 1,
-          chinese: currentZh,
-          english: enMatch[1].trim(),
-          keyWords: [],
-          note: ''
-        })
+        const en = enMatch[1].trim()
+        if (currentZh && en) {
+          // 过滤掉中英文混淆的脏数据（英文中不应包含中文核心字）
+          const hasChinese = /[\u4e00-\u9fa5]/.test(en)
+          if (!hasChinese) {
+            extracted.push({
+              id: extracted.length + 1,
+              chinese: currentZh,
+              english: en,
+              keyWords: [],
+              note: ''
+            })
+          }
+        }
         currentZh = null
         i++ // skip the english line
       }
     }
   }
 
-  // 如果没有提取到，尝试更宽松的匹配
+  // 若严格匹配没到足够的数量，再尝试宽松匹配：## xxx 后紧跟 **English**
+  if (extracted.length < 5) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      const zhMatch2 = line.match(/^#{2,6}\s*(.+)$/)
+      if (zhMatch2) {
+        const zh = zhMatch2[1].replace(/^\d+[\.、)]\s*/, '').trim()
+        const nextLine = lines[i + 1]?.trim() || ''
+        const enMatch = nextLine.match(/^\*\*(.+)\*\*$/)
+        if (enMatch && zh && enMatch[1].trim()) {
+          const en = enMatch[1].trim()
+          const already = extracted.some(s => s.chinese === zh && s.english === en)
+          const hasChinese = /[\u4e00-\u9fa5]/.test(en)
+          if (!already && !hasChinese) {
+            extracted.push({
+              id: extracted.length + 1,
+              chinese: zh,
+              english: en,
+              keyWords: [],
+              note: ''
+            })
+          }
+          i++
+        }
+      }
+    }
+  }
+
+  // 最后兜底：非 # 开头的中英文交替行
   if (extracted.length === 0) {
-    // 尝试按中英文交替行解析
     const cleanLines = lines.map(l => l.trim()).filter(l => l && !l.startsWith('#'))
     for (let i = 0; i < cleanLines.length - 1; i += 2) {
-      const zh = cleanLines[i]
-      const en = cleanLines[i + 1]
-      if (zh && en) {
+      let zh = cleanLines[i]
+      let en = cleanLines[i + 1]
+      if (!zh || !en) continue
+      // 去掉行首序号
+      zh = zh.replace(/^\d+[\.、)]\s*/, '').trim()
+      en = en.replace(/^\d+[\.、)]\s*/, '').trim()
+      const hasChineseZh = /[\u4e00-\u9fa5]/.test(zh)
+      const hasChineseEn = /[\u4e00-\u9fa5]/.test(en)
+      if (hasChineseZh && !hasChineseEn) {
         extracted.push({
           id: extracted.length + 1,
-          chinese: zh.replace(/^\d+[\.、)]\s*/, ''),
-          english: en.replace(/^\d+[\.、)]\s*/, ''),
+          chinese: zh,
+          english: en,
           keyWords: [],
           note: ''
         })
@@ -1252,52 +1292,110 @@ function startRandomTraining() {
 
 // ========== 语音训练方法 ==========
 
-// iOS 需要先"解锁"语音引擎（在用户手势中播一条空的）
-let ttsUnlocked = false
-function unlockTTS() {
-  if (ttsUnlocked || !('speechSynthesis' in window)) return
+// iOS/Safari 下需要先加载 voices 并匹配对应语言的声音
+let voicesLoaded = false
+let ttsWarmedUp = false
+
+function pickVoice(lang) {
+  const isZh = lang === 'zh-CN'
   try {
-    const u = new SpeechSynthesisUtterance('')
+    if (!voicesLoaded && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices() // 触发加载
+      return null
+    }
+    const voices = window.speechSynthesis.getVoices()
+    if (!voices || voices.length === 0) return null
+    // 按语言精确匹配 + 本地优先
+    const preferred = voices.filter(v => {
+      const match = isZh
+        ? (v.lang && v.lang.toLowerCase().startsWith('zh'))
+        : (v.lang && v.lang.toLowerCase().startsWith('en'))
+      return match
+    })
+    if (preferred.length === 0) return null
+    const local = preferred.find(v => v.localService === true)
+    return local || preferred[0]
+  } catch {
+    return null
+  }
+}
+
+// 冷启动解锁：在用户首次手势内播放一个无声的短音
+function warmupTTS() {
+  if (ttsWarmedUp || !('speechSynthesis' in window)) return
+  try {
+    // 静音 " " 唤醒 iOS 引擎
+    const u = new SpeechSynthesisUtterance(' ')
     u.volume = 0
+    u.rate = 1
     window.speechSynthesis.speak(u)
-    ttsUnlocked = true
+    ttsWarmedUp = true
+  } catch {}
+}
+
+if ('speechSynthesis' in window) {
+  try {
+    window.speechSynthesis.onvoiceschanged = () => { voicesLoaded = true }
+    // 立即尝试获取一次（某些浏览器同步加载）
+    const v = window.speechSynthesis.getVoices()
+    if (v && v.length > 0) voicesLoaded = true
   } catch {}
 }
 
 function speakQuestion() {
   if (!sentenceTraining.value || trainingIdx.value >= sentenceTraining.value.length) return
   const sentence = sentenceTraining.value[trainingIdx.value]
-  const text = trainingMode.value === 'cn2en' ? sentence.chinese : sentence.english
-  const lang = trainingMode.value === 'cn2en' ? 'zh-CN' : 'en-US'
-  
-  if (!('speechSynthesis' in window)) {
-    alert('您的浏览器不支持语音合成，请用文本框查看题目')
+  if (!sentence) return
+  const text = (trainingMode.value === 'cn2en' ? sentence.chinese : sentence.english) || ''
+  if (!text) {
+    alert('当前句内容为空，跳过')
     return
   }
-  
-  unlockTTS()
-  
-  isSpeaking.value = true
-  window.speechSynthesis.cancel()
-  
-  // iOS 兼容：cancel 后需要微延迟再 speak
-  const doSpeak = () => {
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = lang
-    utterance.rate = speechRate.value
-    utterance.volume = 1
-    utterance.onend = () => { isSpeaking.value = false }
-    utterance.onerror = () => { isSpeaking.value = false }
-    window.speechSynthesis.speak(utterance)
-    // iOS 有时需要手动 resume
-    setTimeout(() => {
-      if (window.speechSynthesis.speaking && window.speechSynthesis.paused) {
-        window.speechSynthesis.resume()
-      }
-    }, 100)
+  const lang = trainingMode.value === 'cn2en' ? 'zh-CN' : 'en-US'
+
+  if (!('speechSynthesis' in window)) {
+    alert('您的浏览器不支持语音合成')
+    return
   }
-  
-  doSpeak()
+
+  // 用户手势内直接执行：wamup + cancel + speak 保持在同一同步调用栈
+  warmupTTS()
+  isSpeaking.value = true
+
+  // 取消之前的播报，然后立即创建新 utterance
+  try { window.speechSynthesis.cancel() } catch {}
+
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = lang
+  utterance.rate = speechRate.value || 1
+  utterance.pitch = 1
+  utterance.volume = 1
+
+  const voice = pickVoice(lang)
+  if (voice) {
+    utterance.voice = voice
+    if (voice.lang) utterance.lang = voice.lang // 跟随选中的 voice 的 lang
+  }
+
+  const resetSpeaking = () => {
+    isSpeaking.value = false
+  }
+  utterance.onend = resetSpeaking
+  utterance.onerror = resetSpeaking
+
+  window.speechSynthesis.speak(utterance)
+
+  // iOS resume 兜底（不包裹 speak 调用）
+  setTimeout(() => {
+    try {
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume()
+      if (!window.speechSynthesis.speaking && isSpeaking.value) isSpeaking.value = false
+    } catch {}
+  }, 150)
+  setTimeout(() => {
+    // 10s 后强制重置状态，防止卡死
+    if (isSpeaking.value) isSpeaking.value = false
+  }, 10000)
 }
 
 function initSpeechRecognition() {
@@ -1368,74 +1466,137 @@ function toggleRecording() {
   }
 }
 
-async function checkVoiceAnswer() {
+function checkVoiceAnswer() {
   const userAnswer = transcript.value.trim() || voiceTextInput.value.trim()
   if (!userAnswer) return
-  
   const sentence = sentenceTraining.value[trainingIdx.value]
-  const question = trainingMode.value === 'cn2en' ? sentence.chinese : sentence.english
+  const expected = trainingMode.value === 'cn2en' ? sentence.english : sentence.chinese
   const direction = trainingMode.value
-  
+
   isCheckingTraining.value = true
   trainingResult.value = null
-  
-  // 超时兜底：15秒没返回就用本地对比
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('timeout')), 15000)
-  )
-  
-  try {
-    const result = await Promise.race([
-      evaluateSpeechAnswer(question, userAnswer, direction),
-      timeoutPromise
-    ])
-    trainingResult.value = result
-    recordExerciseResult('grammar', result.correct)
-  } catch (err) {
-    // AI 超时或失败，本地简单对比
-    const expected = trainingMode.value === 'cn2en' ? sentence.english : sentence.chinese
-    const correct = localCompareAnswer(userAnswer, expected)
-    trainingResult.value = {
-      correct,
-      score: correct ? 8 : 3,
-      feedback: correct ? '回答基本正确！（AI 超时，本地评判）' : `AI 超时，参考答案：${expected}`,
-      expectedAnswer: expected
-    }
-    recordExerciseResult('grammar', correct)
-  } finally {
-    isCheckingTraining.value = false
+
+  // 立即给出本地评判（避免 AI 慢）
+  const { correct, score, matchRate, missing, feedback } = evaluateAnswerLocal(userAnswer, expected, direction)
+
+  trainingResult.value = {
+    correct,
+    score,
+    expectedAnswer: expected,
+    feedback: feedback || (correct
+      ? `回答正确！核心词匹配度 ${matchRate}%，得分 ${score}/10`
+      : `匹配度 ${matchRate}%，还差一些。核心词：${missing.length ? missing.join(', ') : '整体语义有偏差'}`)
   }
+  recordExerciseResult('grammar', correct)
+  isCheckingTraining.value = false
 }
 
-// 本地答案对比（AI 不可用时的兜底）
-function localCompareAnswer(userAnswer, expected) {
-  const u = userAnswer.toLowerCase().replace(/[^a-z\u4e00-\u9fa5]/g, '')
-  const e = expected.toLowerCase().replace(/[^a-z\u4e00-\u9fa5]/g, '')
-  if (!u || !e) return false
-  // 完全匹配
-  if (u === e) return true
-  // 包含关系（用户答案包含期望答案的核心词）
-  const eWords = e.split(/\s+/).filter(w => w.length > 2)
-  if (eWords.length > 0) {
-    const matchCount = eWords.filter(w => u.includes(w)).length
-    return matchCount / eWords.length >= 0.7
+// 本地答案评判：英文核心词匹配≥85%判正确；中文语义匹配≥85%判正确
+function evaluateAnswerLocal(userAnswer, expected, direction) {
+  // 先做基础清洗
+  const norm = (s, isEnglish) => {
+    if (!s) return ''
+    let t = s.toLowerCase().trim()
+    if (isEnglish) {
+      // 英文：保留字母、数字、空格、单引号；去重复空白
+      t = t.replace(/[^a-z0-9'\s]/g, ' ').replace(/\s+/g, ' ').trim()
+    } else {
+      // 中文：保留汉字 + 英文字母（可能有专有名词）+ 数字
+      t = t.replace(/[^\u4e00-\u9fa5a-z0-9]/g, '')
+    }
+    return t
   }
-  return false
+
+  const isEn = direction === 'cn2en' // 听中说英：用户回答英文（比较英文）
+  const u = norm(userAnswer, isEn)
+  const e = norm(expected, isEn)
+  if (!u || !e) {
+    return { correct: false, score: 0, matchRate: 0, missing: [], feedback: '未识别到有效回答' }
+  }
+
+  // 完全一致
+  if (u === e) {
+    return { correct: true, score: 10, matchRate: 100, missing: [] }
+  }
+
+  let matchRate = 0
+  let missing = []
+  const THRESHOLD = 0.85 // 85%
+
+  if (isEn) {
+    // 英文：核心词匹配（忽略常见小词，如 the/a/an/is/do 等）
+    const stopwords = new Set([
+      'the','a','an','is','are','am','was','were','be','been','being',
+      'do','does','did','have','has','had','will','would','shall','should',
+      'can','could','may','might','must','of','to','in','on','at','for',
+      'with','by','from','as','and','or','but','so','if','then','than',
+      'it','its','this','that','these','those','i','you','he','she','we',
+      'they','me','him','her','us','them','my','your','his','our','their'
+    ])
+    const getTokens = (s) => s.split(/\s+/).filter(Boolean)
+    const eToks = getTokens(e)
+    const uToks = getTokens(u)
+
+    const eCore = eToks.filter(w => w.length > 1 && !stopwords.has(w))
+
+    if (eCore.length === 0) {
+      // 没有核心词，直接比较去空格后的字符串相似度
+      const e2 = e.replace(/\s+/g, '')
+      const u2 = u.replace(/\s+/g, '')
+      if (e2 && u2) {
+        const common = [...e2].filter(c => u2.includes(c)).length
+        matchRate = Math.round(100 * common / e2.length)
+      } else {
+        matchRate = 0
+      }
+    } else {
+      let hit = 0
+      missing = []
+      for (const w of eCore) {
+        // 匹配：完全相同，或用户包含该词根（如 goes / go 视为相同）
+        const matched = uToks.some(uw => uw === w || uw.startsWith(w.slice(0, Math.min(4, w.length))) || w.startsWith(uw.slice(0, Math.min(4, uw.length))))
+        if (matched) hit++
+        else missing.push(w)
+      }
+      matchRate = Math.round(100 * hit / eCore.length)
+    }
+  } else {
+    // 中文：按汉字字符相似度匹配
+    let common = 0
+    const eChars = [...e]
+    const uChars = new Set([...u])
+    for (const c of eChars) {
+      if (uChars.has(c)) common++
+    }
+    matchRate = Math.round(100 * common / eChars.length)
+
+    // 找缺失的中文
+    const missingSet = new Set()
+    for (const c of eChars) {
+      if (!uChars.has(c)) missingSet.add(c)
+    }
+    missing = [...missingSet]
+  }
+
+  const correct = matchRate / 100 >= THRESHOLD
+  let score = Math.max(0, Math.min(10, Math.round(matchRate / 10)))
+  // 完全没有命中，只给 0 分；刚过阈值给 8 分；100 给 10 分
+  if (correct && score < 8) score = 8
+  if (matchRate >= 98) score = 10
+
+  return { correct, score, matchRate, missing }
 }
 
 // 直接看答案：如果有回答就评估，没有就显示正确答案
-async function skipVoiceAnswer() {
+function skipVoiceAnswer() {
   const userAnswer = transcript.value.trim() || voiceTextInput.value.trim()
   const sentence = sentenceTraining.value[trainingIdx.value]
   const expectedAnswer = trainingMode.value === 'cn2en' ? sentence.english : sentence.chinese
   
-  // 如果用户已有回答，先尝试评估
   if (userAnswer) {
-    await checkVoiceAnswer()
+    checkVoiceAnswer()
     return
   }
-  
-  // 没有回答，直接显示正确答案
   trainingResult.value = {
     correct: false,
     score: 0,
