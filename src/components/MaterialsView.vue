@@ -107,16 +107,34 @@
         </div>
 
         <div class="ai-analysis-section">
-          <button v-if="!aiAnalysis && !isAnalyzing" class="btn-ai" @click="runAiAnalysis">
-            {{ iconStyle === 'cute' ? '🤖' : '🤖' }} AI 智能拆解文章
-          </button>
-          <button v-if="!aiAnalysis && !isAnalyzing && selectedMaterial" class="btn-ai voice" @click="extractSentencesFromContent">
+          <!-- 识别到中英对照结构时的绿色提示条 -->
+          <div v-if="selectedMaterial && hasCnEnStructure" class="local-ready-tip">
+            <span class="tip-icon">✅</span>
+            <span class="tip-text">已识别为中英对照资料，无需联网/AI，直接开始训练</span>
+          </div>
+
+          <!-- 直接训练按钮放在前面，最突出 -->
+          <button v-if="selectedMaterial && !sentenceTraining.length && !isAnalyzing" class="btn-ai direct-train" @click="extractSentencesFromContent">
             {{ iconStyle === 'cute' ? '🎯' : '🎯' }} 直接开始训练
+            <span class="btn-sub">免 AI · 免联网 · 即开即用</span>
+          </button>
+          <button v-if="sentenceTraining.length > 0 && !trainingMode && !isAnalyzing" class="btn-ai direct-train" @click="extractSentencesFromContent">
+            {{ iconStyle === 'cute' ? '🔁' : '🔁' }} 重新解析资料句子
+          </button>
+
+          <!-- AI 拆解设为次要 -->
+          <button v-if="!aiAnalysis && !isAnalyzing" class="btn-ai optional-ai" @click="runAiAnalysis">
+            {{ iconStyle === 'cute' ? '🤖' : '🤖' }} AI 智能拆解（需联网+API Key）
+            <span class="btn-sub">增强：词汇/语法/文化笔记</span>
           </button>
 
           <div v-if="isAnalyzing" class="ai-loading">
             <div class="ai-spinner"></div>
-            <span>AI 正在分析文章...</span>
+            <span v-if="isAnalyzingLocal">本地解析中...</span>
+            <span v-else>AI 正在分析文章... (失败时会自动切换到本地解析)</span>
+          </div>
+          <div v-if="aiAnalysis && isLocalAnalysis" class="local-analysis-badge">
+            📦 当前显示为本地离线分析结果（无需 AI 网络）
           </div>
 
           <div v-if="aiAnalysis" class="ai-result">
@@ -689,6 +707,8 @@ const isCorrect = ref(false)
 const allCorrect = ref(false)
 const aiAnalysis = ref(null)
 const isAnalyzing = ref(false)
+const isAnalyzingLocal = ref(false)
+const isLocalAnalysis = ref(false) // 标记当前 aiAnalysis 是否为本地离线构建
 const aiQuestions = ref(null)
 const aiUserAnswers = ref({})
 const aiQuestionResults = ref({})
@@ -727,6 +747,18 @@ const filteredMaterials = computed(() => {
   )
 })
 
+// 判断资料内容是否像"中英对照"结构
+const hasCnEnStructure = computed(() => {
+  if (!selectedMaterial.value) return false
+  const c = selectedMaterial.value.content || ''
+  // 规则1: 存在 ## 数字序号. 中文 + 下一行是 **英文** 的模式（命中≥3次）
+  const hits = c.match(/^#{2,6}\s*\d+[\.、)]\s*.*[\u4e00-\u9fa5]+.*\n\s*\*\*.+\*\*/gm)
+  if (hits && hits.length >= 3) return true
+  // 规则2: 直接提取 sentenceTraining 已解析出 ≥3 句也算
+  if (sentenceTraining.value && sentenceTraining.value.length >= 3) return true
+  return false
+})
+
 function formatDate(dateStr) {
   const date = new Date(dateStr)
   return date.toLocaleDateString('zh-CN')
@@ -759,42 +791,281 @@ function closeDetail() {
 async function runAiAnalysis() {
   if (!selectedMaterial.value) return
   const apiKey = localStorage.getItem('ai_api_key')
-  if (!apiKey) {
-    alert('请先在设置中配置 AI API Key')
-    return
-  }
   isAnalyzing.value = true
+  isAnalyzingLocal.value = false
+  isLocalAnalysis.value = false
+
   try {
-    const [analysis] = await Promise.all([
-      analyzeArticle(selectedMaterial.value.title, selectedMaterial.value.content)
-    ])
-    aiAnalysis.value = analysis
-    // 用 keySentences 作为训练数据
-    if (analysis.keySentences && analysis.keySentences.length > 0) {
-      sentenceTraining.value = analysis.keySentences.map((s, i) => ({
-        id: i + 1,
-        english: s.sentence,
-        chinese: s.translation,
-        keyWords: [],
-        note: s.note
-      }))
+    if (apiKey) {
+      const analysis = await analyzeArticle(
+        selectedMaterial.value.title,
+        selectedMaterial.value.content
+      )
+      aiAnalysis.value = analysis
+      if (analysis.keySentences && analysis.keySentences.length > 0) {
+        sentenceTraining.value = analysis.keySentences.map((s, i) => ({
+          id: i + 1,
+          english: s.sentence,
+          chinese: s.translation,
+          keyWords: [],
+          note: s.note
+        }))
+      }
+    } else {
+      throw new Error('no-api-key')
     }
   } catch (e) {
-    alert('AI 分析失败: ' + e.message)
+    // 自动 fallback 到本地分析
+    isAnalyzingLocal.value = true
+    try {
+      const analysis = await buildLocalAnalysisFromSentences(
+        selectedMaterial.value.title,
+        selectedMaterial.value.content
+      )
+      aiAnalysis.value = analysis
+      isLocalAnalysis.value = true
+    } catch (e2) {
+      alert('本地解析也失败: ' + e2.message)
+    }
+  } finally {
+    isAnalyzingLocal.value = false
+    isAnalyzing.value = false
+    if (sentenceTraining.value && sentenceTraining.value.length > 0) {
+      loadTrainingProgress()
+    }
   }
-  isAnalyzing.value = false
+}
+
+// ========== 本地离线 AI 分析构建（完全无需联网） ==========
+async function buildLocalAnalysisFromSentences(title, content) {
+  // 先尝试解析句子
+  let sentences = []
+  const lines = (content || '').split('\n')
+
+  const pushSentence = (zh, en) => {
+    zh = (zh || '').trim()
+    en = (en || '').trim()
+    if (!zh || !en) return
+    if (/[\u4e00-\u9fa5]/.test(en)) return
+    if (sentences.some(s => s.chinese === zh && s.english === en)) return
+    sentences.push({ chinese: zh, english: en })
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    const m = line.match(/^#{2,6}\s*\d+[\.、)]\s*(.+)$/)
+    if (m) {
+      const zh = m[1].trim()
+      const next = lines[i + 1]?.trim() || ''
+      const enMatch = next.match(/^\*\*(.+)\*\*$/)
+      if (enMatch) {
+        pushSentence(zh, enMatch[1])
+        i++
+        continue
+      }
+    }
+    const m2 = line.match(/^#{2,6}\s*(.+)$/)
+    if (m2) {
+      const zh = m2[1].replace(/^\d+[\.、)]\s*/, '').trim()
+      const next = lines[i + 1]?.trim() || ''
+      const enMatch = next.match(/^\*\*(.+)\*\*$/)
+      if (enMatch) {
+        pushSentence(zh, enMatch[1])
+        i++
+      }
+    }
+  }
+
+  // 兜底：按行成对解析
+  if (sentences.length === 0) {
+    const clean = lines.map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+    for (let i = 0; i < clean.length - 1; i += 2) {
+      let zh = clean[i].replace(/^\d+[\.、)]\s*/, '').trim()
+      let en = clean[i + 1].replace(/^\d+[\.、)]\s*/, '').trim()
+      if (/[\u4e00-\u9fa5]/.test(zh) && !/[\u4e00-\u9fa5]/.test(en)) {
+        pushSentence(zh, en)
+      }
+    }
+  }
+
+  if (sentences.length === 0) {
+    throw new Error('未识别到有效中英对照句子，请检查资料格式：英文行应为 **句子** 样式')
+  }
+
+  // 同步写入 sentenceTraining
+  sentenceTraining.value = sentences.map((s, i) => ({
+    id: i + 1,
+    english: s.english,
+    chinese: s.chinese,
+    keyWords: [],
+    note: ''
+  }))
+
+  // 1. 核心词汇：收集所有句子中的"长英文单词"并去重
+  const stopwords = new Set([
+    'the','a','an','is','are','am','was','were','be','been','being',
+    'do','does','did','have','has','had','will','would','shall','should',
+    'can','could','may','might','must','of','to','in','on','at','for',
+    'with','by','from','as','and','or','but','so','if','then','than',
+    'it','its','this','that','these','those','i','you','he','she','we',
+    'they','me','him','her','us','them','my','your','his','our','their',
+    'what','when','where','who','why','how','which','whom','whose',
+    'not','no','yes','here','there','very','much','many','some','any'
+  ])
+  const wordMap = new Map()
+  for (const s of sentences) {
+    const toks = s.english.toLowerCase().split(/[^a-z]/).filter(Boolean)
+    for (const t of toks) {
+      if (t.length < 4) continue
+      if (stopwords.has(t)) continue
+      if (!wordMap.has(t)) wordMap.set(t, 0)
+      wordMap.set(t, wordMap.get(t) + 1)
+    }
+  }
+  const topWords = [...wordMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([w, freq]) => ({ word: w, meaning: '（本地解析，建议用字典查详细释义）', level: freq >= 3 ? '高频' : '常用' }))
+
+  // 2. 句子分析（keySentences）
+  const keySents = sentences.slice(0, 20).map(s => ({
+    sentence: s.english,
+    translation: s.chinese,
+    note: localGrammarNote(s.english)
+  }))
+
+  // 3. 语法点（grammarPoints）：按句子结构识别
+  const grammarPoints = buildGrammarPoints(sentences)
+
+  // 4. 阅读理解题（基于句子随机生成问答配对选择题）
+  const questions = buildLocalComprehensionQuestions(sentences)
+
+  // 5. 难度分数：按句数和疑问词复杂度估算
+  let diffScore = 3
+  if (sentences.length >= 50) diffScore = 4
+  if (sentences.length >= 80) diffScore = 5
+  const hasWhWord = sentences.some(s => /^(what|when|where|who|why|how|which|whom|whose)\b/i.test(s.english))
+  if (hasWhWord) diffScore = Math.min(10, diffScore + 1)
+  const difficulty = diffScore <= 3 ? '初级' : diffScore <= 6 ? '中级' : '高级'
+
+  const difficultyScore = diffScore
+  return {
+    title: title || '本地解析资料',
+    difficulty,
+    difficultyScore,
+    summary: `本资料共收录 ${sentences.length} 句中英对照内容${hasWhWord ? '，重点包含疑问句式练习（What/When/Where/Who/Why/How）' : ''}。本地已自动解析为训练句子，可直接进入句子训练和语音问答。`,
+    coreVocabulary: topWords,
+    keySentences: keySents,
+    grammarPoints: grammarPoints,
+    readingComprehension: { questions },
+    culturalNotes: null
+  }
+}
+
+// 基于英文句子的结构给出简单语法提示
+function localGrammarNote(en) {
+  const lower = en.toLowerCase().trim()
+  if (/^(what|when|where|who|why|how|which|whom|whose)\b/.test(lower)) {
+    const qword = lower.split(/\s+/)[0].toUpperCase()
+    if (/\?$/.test(en)) {
+      return `${qword} 引导的特殊疑问句：语序为"疑问词 + 一般疑问句"。`
+    }
+  }
+  if (/^(is|are|am|was|were|do|does|did|have|has|had|can|could|will|would|shall|should|may|might|must)\b/.test(lower)) {
+    const aux = lower.split(/\s+/)[0].toUpperCase()
+    return `${aux} 开头的一般疑问句：回答用 Yes/No + 主语 + 助动词。`
+  }
+  if (/be (going to|about to)/i.test(lower)) return '一般将来时：be going to 表示打算或即将发生的动作。'
+  if (/\bdid\b/.test(lower) || /\bwent\b|\bsaid\b|\bgave\b|\bwas\b|\bwere\b|\bhad\b.*\bed\b/.test(lower)) return '一般过去时：描述过去发生的动作或状态。'
+  if (/\bhave|has\b.*\bed\b/.test(lower)) return '现在完成时：have/has + 过去分词，强调对现在的影响。'
+  return '陈述句：主语 + 谓语 + 宾语/表语的基本语序。'
+}
+
+// 构建语法点列表
+function buildGrammarPoints(sentences) {
+  const kinds = new Map()
+  const add = (k, desc, ex) => {
+    if (!kinds.has(k)) kinds.set(k, { point: k, explanation: desc, examples: [] })
+    const entry = kinds.get(k)
+    if (ex && !entry.examples.includes(ex) && entry.examples.length < 3) entry.examples.push(ex)
+  }
+  for (const s of sentences) {
+    const l = s.english.toLowerCase()
+    if (/^(what|when|where|who|why|how|which)\b/.test(l)) add('Wh- 特殊疑问句', '疑问词(What/When/Where/Who/Why/How/Which)开头，直接提问具体信息。', s.english)
+    if (/^(is|are|am|was|were|do|does|did|have|has|had|can|could|will|would)\b/.test(l) && !/^(what|when|where|who|why|how|which)\b/.test(l)) add('一般疑问句', '助动词/be动词/情态动词提前，回答通常为 Yes/No。', s.english)
+    if (/be (going to)/i.test(l)) add('be going to 表将来', '"am/is/are going to + 动词原形"表示计划/打算。', s.english)
+    if (/\bdid\b|\bwent\b|\bwas\b|\bwere\b/.test(l)) add('一般过去时', '描述过去发生的事：助动词did，实义动词用过去式。', s.english)
+    if (/\?\s*$/.test(s.english.trim())) add('疑问句句末用问号', '英文疑问句结尾必须带问号 "?"，朗读时通常句尾升调。', s.english)
+  }
+  return [...kinds.values()].slice(0, 8)
+}
+
+// 本地构建阅读理解选择题
+function buildLocalComprehensionQuestions(sentences) {
+  const qs = []
+  const picked = new Set()
+  const total = sentences.length
+  for (let attempt = 0; attempt < Math.min(5, total); attempt++) {
+    let idx
+    do { idx = Math.floor(Math.random() * total) } while (picked.has(idx) && picked.size < total)
+    picked.add(idx)
+    const s = sentences[idx]
+    const question = `「${s.chinese}」对应的英文是哪一句？`
+    const correct = s.english
+    const wrongPool = sentences.filter((_, i) => i !== idx).map(o => o.english)
+    const wrongs = wrongPool.sort(() => Math.random() - 0.5).slice(0, 3)
+    const options = [...wrongs, correct].sort(() => Math.random() - 0.5)
+    const correctIndex = options.indexOf(correct)
+    qs.push({
+      question,
+      options,
+      correctIndex,
+      explanation: '正确答案：' + correct,
+      difficulty: 3
+    })
+  }
+  return qs
 }
 
 async function runAiQuestions() {
   if (!selectedMaterial.value) return
-  try {
-    const result = await generateComprehensionQuestions(selectedMaterial.value.title, selectedMaterial.value.content)
-    aiQuestions.value = result
-    aiUserAnswers.value = {}
-    aiQuestionResults.value = {}
-  } catch (e) {
-    alert('生成题目失败: ' + e.message)
+  const apiKey = localStorage.getItem('ai_api_key')
+
+  // 确保先有 sentenceTraining / aiAnalysis
+  if (!sentenceTraining.value || sentenceTraining.value.length === 0) {
+    extractSentencesFromContent()
   }
+
+  try {
+    let result = null
+    if (apiKey) {
+      result = await generateComprehensionQuestions(
+        selectedMaterial.value.title,
+        selectedMaterial.value.content
+      )
+    }
+    if (!result || !result.questions || result.questions.length === 0) throw new Error('no-ai')
+    aiQuestions.value = result
+  } catch (e) {
+    // 走本地题目
+    const sentArr = (sentenceTraining.value || []).map(s => ({ english: s.english, chinese: s.chinese }))
+    if (sentArr.length === 0) {
+      // 没解析出句子再试一次
+      await buildLocalAnalysisFromSentences(
+        selectedMaterial.value.title,
+        selectedMaterial.value.content
+      )
+    }
+    const arr = (sentenceTraining.value || []).map(s => ({ english: s.english, chinese: s.chinese }))
+    aiQuestions.value = {
+      passage: selectedMaterial.value.content,
+      questions: buildLocalComprehensionQuestions(arr)
+    }
+    isLocalAnalysis.value = true
+  }
+
+  aiUserAnswers.value = {}
+  aiQuestionResults.value = {}
 }
 
 function selectAiAnswer(qi, ci) {
@@ -2313,6 +2584,70 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
   box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
   margin-top: 8px;
+}
+
+.btn-ai.direct-train {
+  background: linear-gradient(135deg, #00b894 0%, #00a381 100%);
+  box-shadow: 0 4px 14px rgba(0, 184, 148, 0.35);
+  font-size: 18px;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-ai.direct-train + .btn-ai.direct-train {
+  background: linear-gradient(135deg, #0984e3 0%, #0869b8 100%);
+  box-shadow: 0 4px 14px rgba(9, 132, 227, 0.35);
+  font-size: 15px;
+  padding: 14px;
+}
+
+.btn-ai .btn-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.9;
+}
+
+.btn-ai.optional-ai {
+  background: linear-gradient(135deg, #dfe6e9 0%, #b2bec3 100%);
+  color: #2d3436;
+  box-shadow: none;
+  font-size: 14px;
+  padding: 14px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.local-ready-tip {
+  background: linear-gradient(135deg, #e8f8f2 0%, #d4f5e9 100%);
+  border: 1px solid #81ecec;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #00b894;
+  font-weight: 600;
+}
+.local-ready-tip .tip-icon { font-size: 18px; }
+
+.local-analysis-badge {
+  background: #fff9db;
+  border: 1px dashed #f0b429;
+  color: #b8860b;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  text-align: center;
 }
 
 .btn-ai-secondary {
