@@ -185,6 +185,15 @@
 
             <!-- 模式选择 -->
             <div v-if="!trainingMode" class="training-modes">
+              <!-- 快捷入口：继续上次 / 随机开始 -->
+              <div v-if="hasLastProgress" class="quick-start-bar">
+                <button class="quick-btn continue" @click="continueLastTraining">
+                  ▶️ 继续上次（第 {{ lastTrainingIdx + 1 }} 句）
+                </button>
+                <button class="quick-btn random" @click="startRandomTraining">
+                  🎲 随机开始
+                </button>
+              </div>
               <button class="training-mode-btn" @click="startTraining('browse')">
                 <span class="mode-icon">📖</span>
                 <span class="mode-name">对照浏览</span>
@@ -214,6 +223,11 @@
                 <span class="mode-icon">🎤</span>
                 <span class="mode-name">听英说中</span>
                 <span class="mode-desc">听英文说中文(语音)</span>
+              </button>
+              <button v-if="!hasLastProgress" class="training-mode-btn random-mode" @click="startRandomTraining">
+                <span class="mode-icon">🎲</span>
+                <span class="mode-name">随机开始</span>
+                <span class="mode-desc">随机抽一句开始</span>
               </button>
             </div>
 
@@ -399,7 +413,7 @@
                     AI 评判答案
                   </button>
                   <button class="btn-secondary" @click="skipVoiceAnswer">
-                    跳过 / 看答案
+                    直接看答案
                   </button>
                 </div>
                 <div v-if="isCheckingTraining" class="voice-evaluating">
@@ -699,6 +713,10 @@ const transcript = ref('')
 const voiceTextInput = ref('')
 let recognition = null
 let shouldStopRecording = false
+
+// 训练进度记忆
+const lastTrainingIdx = ref(0) // 上次训练到的位置
+const hasLastProgress = ref(false)
 
 const filteredMaterials = computed(() => {
   if (!searchQuery.value) return props.materials
@@ -1004,9 +1022,9 @@ function speakText(text, rate = 0.9) {
 
 // ========== 句子训练方法 ==========
 
-function startTraining(mode) {
+function startTraining(mode, startIdx = 0) {
   trainingMode.value = mode
-  trainingIdx.value = 0
+  trainingIdx.value = startIdx
   trainingAnswer.value = ''
   trainingResult.value = null
   showDictationHint.value = false
@@ -1020,9 +1038,9 @@ function startTraining(mode) {
   if (mode === 'cloze') {
     loadClozeExercise()
   }
-  // 语音模式自动播放问题
-  if (mode === 'cn2en' || mode === 'en2cn') {
-    setTimeout(() => speakQuestion(), 300)
+  // 语音模式不自动播放（iOS 需用户手势触发），改为提示用户点击播放
+  if ((mode === 'cn2en' || mode === 'en2cn') && startIdx > 0) {
+    // 继续上次时显示提示
   }
 }
 
@@ -1062,12 +1080,8 @@ function nextTraining() {
     clozeResult.value = null
     loadClozeExercise()
   }
-  // 语音模式自动播放下一题
-  if (trainingMode.value === 'cn2en' || trainingMode.value === 'en2cn') {
-    if (trainingIdx.value < sentenceTraining.value.length) {
-      setTimeout(() => speakQuestion(), 300)
-    }
-  }
+  // 保存进度
+  saveTrainingProgress()
 }
 
 function restartTraining() {
@@ -1083,9 +1097,7 @@ function restartTraining() {
   if (trainingMode.value === 'cloze') {
     loadClozeExercise()
   }
-  if (trainingMode.value === 'cn2en' || trainingMode.value === 'en2cn') {
-    setTimeout(() => speakQuestion(), 300)
-  }
+  saveTrainingProgress()
 }
 
 async function loadClozeExercise() {
@@ -1188,9 +1200,69 @@ function extractSentencesFromContent() {
   clozeResult.value = null
   transcript.value = ''
   voiceTextInput.value = ''
+  
+  // 检查是否有上次的训练进度
+  loadTrainingProgress()
+}
+
+// ========== 训练进度记忆 ==========
+function getProgressKey() {
+  if (!selectedMaterial.value) return null
+  return `training_progress_${selectedMaterial.value.id}`
+}
+
+function loadTrainingProgress() {
+  if (!selectedMaterial.value) {
+    hasLastProgress.value = false
+    return
+  }
+  const saved = localStorage.getItem(getProgressKey())
+  if (saved) {
+    const { idx, total } = JSON.parse(saved)
+    // 确保存的进度对应当前句子总数
+    if (total === sentenceTraining.value.length && idx > 0 && idx < total) {
+      lastTrainingIdx.value = idx
+      hasLastProgress.value = true
+    } else {
+      hasLastProgress.value = false
+    }
+  } else {
+    hasLastProgress.value = false
+  }
+}
+
+function saveTrainingProgress() {
+  if (!selectedMaterial.value || !sentenceTraining.value) return
+  localStorage.setItem(getProgressKey(), JSON.stringify({
+    idx: trainingIdx.value,
+    total: sentenceTraining.value.length,
+    time: Date.now()
+  }))
+}
+
+function continueLastTraining() {
+  startTraining('cn2en', lastTrainingIdx.value)
+}
+
+function startRandomTraining() {
+  if (!sentenceTraining.value || sentenceTraining.value.length === 0) return
+  const randomIdx = Math.floor(Math.random() * sentenceTraining.value.length)
+  startTraining('cn2en', randomIdx)
 }
 
 // ========== 语音训练方法 ==========
+
+// iOS 需要先"解锁"语音引擎（在用户手势中播一条空的）
+let ttsUnlocked = false
+function unlockTTS() {
+  if (ttsUnlocked || !('speechSynthesis' in window)) return
+  try {
+    const u = new SpeechSynthesisUtterance('')
+    u.volume = 0
+    window.speechSynthesis.speak(u)
+    ttsUnlocked = true
+  } catch {}
+}
 
 function speakQuestion() {
   if (!sentenceTraining.value || trainingIdx.value >= sentenceTraining.value.length) return
@@ -1199,18 +1271,33 @@ function speakQuestion() {
   const lang = trainingMode.value === 'cn2en' ? 'zh-CN' : 'en-US'
   
   if (!('speechSynthesis' in window)) {
-    alert('您的浏览器不支持语音合成')
+    alert('您的浏览器不支持语音合成，请用文本框查看题目')
     return
   }
   
+  unlockTTS()
+  
   isSpeaking.value = true
   window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.lang = lang
-  utterance.rate = speechRate.value
-  utterance.onend = () => { isSpeaking.value = false }
-  utterance.onerror = () => { isSpeaking.value = false }
-  window.speechSynthesis.speak(utterance)
+  
+  // iOS 兼容：cancel 后需要微延迟再 speak
+  const doSpeak = () => {
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = lang
+    utterance.rate = speechRate.value
+    utterance.volume = 1
+    utterance.onend = () => { isSpeaking.value = false }
+    utterance.onerror = () => { isSpeaking.value = false }
+    window.speechSynthesis.speak(utterance)
+    // iOS 有时需要手动 resume
+    setTimeout(() => {
+      if (window.speechSynthesis.speaking && window.speechSynthesis.paused) {
+        window.speechSynthesis.resume()
+      }
+    }, 100)
+  }
+  
+  doSpeak()
 }
 
 function initSpeechRecognition() {
@@ -1292,24 +1379,67 @@ async function checkVoiceAnswer() {
   isCheckingTraining.value = true
   trainingResult.value = null
   
+  // 超时兜底：15秒没返回就用本地对比
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), 15000)
+  )
+  
   try {
-    const result = await evaluateSpeechAnswer(question, userAnswer, direction)
+    const result = await Promise.race([
+      evaluateSpeechAnswer(question, userAnswer, direction),
+      timeoutPromise
+    ])
     trainingResult.value = result
     recordExerciseResult('grammar', result.correct)
   } catch (err) {
-    alert('评估失败: ' + err.message)
+    // AI 超时或失败，本地简单对比
+    const expected = trainingMode.value === 'cn2en' ? sentence.english : sentence.chinese
+    const correct = localCompareAnswer(userAnswer, expected)
+    trainingResult.value = {
+      correct,
+      score: correct ? 8 : 3,
+      feedback: correct ? '回答基本正确！（AI 超时，本地评判）' : `AI 超时，参考答案：${expected}`,
+      expectedAnswer: expected
+    }
+    recordExerciseResult('grammar', correct)
   } finally {
     isCheckingTraining.value = false
   }
 }
 
-function skipVoiceAnswer() {
+// 本地答案对比（AI 不可用时的兜底）
+function localCompareAnswer(userAnswer, expected) {
+  const u = userAnswer.toLowerCase().replace(/[^a-z\u4e00-\u9fa5]/g, '')
+  const e = expected.toLowerCase().replace(/[^a-z\u4e00-\u9fa5]/g, '')
+  if (!u || !e) return false
+  // 完全匹配
+  if (u === e) return true
+  // 包含关系（用户答案包含期望答案的核心词）
+  const eWords = e.split(/\s+/).filter(w => w.length > 2)
+  if (eWords.length > 0) {
+    const matchCount = eWords.filter(w => u.includes(w)).length
+    return matchCount / eWords.length >= 0.7
+  }
+  return false
+}
+
+// 直接看答案：如果有回答就评估，没有就显示正确答案
+async function skipVoiceAnswer() {
+  const userAnswer = transcript.value.trim() || voiceTextInput.value.trim()
   const sentence = sentenceTraining.value[trainingIdx.value]
   const expectedAnswer = trainingMode.value === 'cn2en' ? sentence.english : sentence.chinese
+  
+  // 如果用户已有回答，先尝试评估
+  if (userAnswer) {
+    await checkVoiceAnswer()
+    return
+  }
+  
+  // 没有回答，直接显示正确答案
   trainingResult.value = {
     correct: false,
     score: 0,
-    feedback: '已跳过，请看正确答案',
+    feedback: '未作答，请看正确答案',
     expectedAnswer
   }
 }
@@ -2359,6 +2489,57 @@ onUnmounted(() => {
 .training-mode-btn.voice-mode:hover {
   border-color: #ff6b6b;
   background: linear-gradient(135deg, #ffe8e8 0%, #ffd4d4 100%);
+}
+
+.training-mode-btn.random-mode {
+  border-color: #00b894;
+  background: linear-gradient(135deg, #f0fff4 0%, #e0f7ee 100%);
+}
+
+.training-mode-btn.random-mode:hover {
+  border-color: #00b894;
+  background: linear-gradient(135deg, #e0f7ee 0%, #c8f0db 100%);
+}
+
+/* 快捷开始栏 */
+.quick-start-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.quick-btn {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-btn.continue {
+  background: linear-gradient(135deg, #00b894 0%, #00a381 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 184, 148, 0.3);
+}
+
+.quick-btn.continue:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 184, 148, 0.4);
+}
+
+.quick-btn.random {
+  background: linear-gradient(135deg, #6c5ce7 0%, #5b4bd6 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+}
+
+.quick-btn.random:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(108, 92, 231, 0.4);
 }
 
 /* 语音训练样式 */
