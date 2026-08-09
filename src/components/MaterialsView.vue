@@ -397,36 +397,51 @@
                     : sentenceTraining[trainingIdx].english 
                   }}
                 </div>
+
+                <!-- 语音识别不支持时的提示 -->
+                <div v-if="!speechRecognitionSupported" class="voice-unsupported-tip">
+                  ⚠️ 当前浏览器不支持语音识别。请在下方文本框直接输入回答，或用 Chrome/Edge 浏览器体验语音功能。
+                </div>
+
                 <div class="voice-actions">
                   <button class="btn-primary voice-speak-btn" @click="speakQuestion" :disabled="isSpeaking">
                     {{ isSpeaking ? '🔊 朗读中...' : '🔊 播放提问' }}
                   </button>
-                  <button 
-                    :class="['voice-record-btn', { recording: isRecording }]" 
+                  <button
+                    v-if="speechRecognitionSupported"
+                    :class="['voice-record-btn', { recording: isRecording }]"
                     @click="toggleRecording"
                     :disabled="isCheckingTraining"
                   >
                     {{ isRecording ? '🔴 停止录音' : '🎤 开始回答' }}
                   </button>
                 </div>
+
+                <!-- 录音中的实时提示 -->
+                <div v-if="isRecording" class="recording-indicator">
+                  <span class="recording-dot"></span>
+                  正在聆听...请大声说出你的回答
+                </div>
+
+                <!-- 实时识别结果 -->
                 <div v-if="transcript" class="voice-transcript">
                   <div class="transcript-label">识别结果：</div>
                   <div class="transcript-text">{{ transcript }}</div>
                 </div>
+
                 <div class="voice-input-area">
                   <textarea
                     v-model="voiceTextInput"
                     class="training-input"
-                    :placeholder="trainingMode === 'cn2en' ? '或直接输入英文回答...' : '或直接输入中文回答...'"
+                    :placeholder="trainingMode === 'cn2en' ? '输入英文回答...' : '输入中文回答...'"
                     rows="2"
                     :disabled="trainingResult"
                   ></textarea>
                 </div>
                 <div v-if="!trainingResult && !isCheckingTraining" class="training-actions">
-                  <button 
-                    class="btn-primary" 
-                    @click="checkVoiceAnswer" 
-                    :disabled="!transcript && !voiceTextInput.trim()"
+                  <button
+                    class="btn-primary"
+                    @click="checkVoiceAnswer"
                   >
                     ✅ 检查答案
                   </button>
@@ -436,7 +451,7 @@
                 </div>
                 <div v-if="isCheckingTraining" class="voice-evaluating">
                   <div class="ai-spinner"></div>
-                  <span>AI 正在评判中...</span>
+                  <span>评判中...</span>
                 </div>
                 <div v-if="trainingResult" :class="['training-result', trainingResult.correct ? 'correct' : 'incorrect']">
                   <div class="result-icon">{{ trainingResult.correct ? '🎉' : '😅' }}</div>
@@ -733,6 +748,12 @@ const transcript = ref('')
 const voiceTextInput = ref('')
 let recognition = null
 let shouldStopRecording = false
+
+// 检测浏览器是否支持语音识别
+const speechRecognitionSupported = ref(false)
+if (typeof window !== 'undefined') {
+  speechRecognitionSupported.value = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+}
 
 // 训练进度记忆
 const lastTrainingIdx = ref(0) // 上次训练到的位置
@@ -1656,15 +1677,24 @@ function toggleRecording() {
 
 function checkVoiceAnswer() {
   const userAnswer = transcript.value.trim() || voiceTextInput.value.trim()
-  if (!userAnswer) return
+  if (!userAnswer) {
+    // 没有回答时给一个提示，而不是静默返回
+    if (speechRecognitionSupported.value) {
+      alert('请先点击「🎤 开始回答」语音回答，或在下方文本框输入回答后再检查答案。')
+    } else {
+      alert('请在下方文本框输入你的回答后再检查答案。')
+    }
+    return
+  }
   const sentence = sentenceTraining.value[trainingIdx.value]
+  if (!sentence) return
   const expected = trainingMode.value === 'cn2en' ? sentence.english : sentence.chinese
   const direction = trainingMode.value
 
   isCheckingTraining.value = true
   trainingResult.value = null
 
-  // 立即给出本地评判（避免 AI 慢）
+  // 立即给出本地评判
   const { correct, score, matchRate, missing, feedback } = evaluateAnswerLocal(userAnswer, expected, direction)
 
   trainingResult.value = {
@@ -3025,9 +3055,49 @@ onUnmounted(() => {
 
 .voice-transcript {
   background: #e8f5e9;
+  border: 1px solid #81c784;
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 12px;
+}
+
+.voice-unsupported-tip {
+  background: #fff9db;
+  border: 1px dashed #f0b429;
+  color: #b8860b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff0f0;
+  border: 1px solid #ff6b6b;
+  border-radius: 8px;
+  margin: 10px 0;
+  color: #e74c3c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.recording-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff4444;
+  animation: blink-dot 1s ease-in-out infinite;
+}
+
+@keyframes blink-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .transcript-label {
