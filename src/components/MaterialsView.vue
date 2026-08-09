@@ -1619,8 +1619,10 @@ function initSpeechRecognition() {
   rec.interimResults = true
 
   let finalText = ''
+  let hasGotResult = false
 
   rec.onresult = (event) => {
+    hasGotResult = true
     let interimText = ''
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i]
@@ -1632,19 +1634,20 @@ function initSpeechRecognition() {
     }
     const fullText = (finalText + interimText).trim()
     transcript.value = fullText
-    // 同步到文本输入框，让用户能看到并编辑识别结果
     voiceTextInput.value = fullText
+    console.log('[speech] 识别结果:', fullText)
   }
 
   rec.onerror = (event) => {
-    console.error('语音识别错误:', event.error)
+    console.error('[speech] 错误:', event.error)
     isRecording.value = false
     const errMsgs = {
       'not-allowed': '麦克风权限被拒绝，请在浏览器设置中允许使用麦克风',
       'no-speech': '没有检测到语音，请大声再说一次',
       'network': '语音识别网络错误，请检查网络连接',
       'aborted': '录音已取消',
-      'service-not-allowed': '语音服务不可用，请使用 Chrome/Edge 浏览器'
+      'service-not-allowed': '语音服务不可用，请使用 Chrome/Edge 浏览器',
+      'audio-capture': '无法捕获音频，请检查麦克风是否正常'
     }
     const msg = errMsgs[event.error] || `语音识别出错: ${event.error}`
     if (event.error !== 'aborted') {
@@ -1659,48 +1662,75 @@ function initSpeechRecognition() {
       transcript.value = text
       voiceTextInput.value = text
     }
+    console.log('[speech] 识别结束, finalText:', finalText)
   }
+
+  // 超时检测：8秒内没有结果，提示用户
+  setTimeout(() => {
+    if (isRecording.value && !hasGotResult) {
+      console.warn('[speech] 8秒无结果，可能麦克风未正常工作')
+      if (recognition) {
+        try { recognition.stop() } catch {}
+      }
+      isRecording.value = false
+      alert('语音识别8秒内未收到结果。\n可能原因：\n1. 麦克风未正常工作\n2. 浏览器不支持在线语音识别\n\n请在下方文本框直接输入回答。')
+    }
+  }, 8000)
 
   return rec
 }
 
-function toggleRecording() {
+async function toggleRecording() {
   if (isRecording.value) {
     shouldStopRecording = true
     if (recognition) {
       try { recognition.stop() } catch {}
     }
     isRecording.value = false
-  } else {
-    // 先清理上一次的识别实例
-    if (recognition) {
-      try { recognition.abort() } catch {}
-      recognition = null
-    }
-    transcript.value = ''
-    voiceTextInput.value = ''
-    recognition = initSpeechRecognition()
-    if (!recognition) return
+    return
+  }
 
+  // 先清理上一次的识别实例
+  if (recognition) {
+    try { recognition.abort() } catch {}
+    recognition = null
+  }
+
+  // 显式请求麦克风权限（触发浏览器权限弹窗）
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    // 拿到权限后立即释放，让 SpeechRecognition 自己管理
+    stream.getTracks().forEach(t => t.stop())
+    console.log('[speech] 麦克风权限已获取')
+  } catch (err) {
+    console.error('[speech] 麦克风权限失败:', err)
+    alert('无法访问麦克风: ' + (err.message || err.name) + '\n\n请在浏览器地址栏点击🔒图标，允许麦克风权限后重试。\n或直接在下方文本框输入回答。')
+    return
+  }
+
+  transcript.value = ''
+  // 不清空 voiceTextInput，保留用户可能已输入的内容
+  recognition = initSpeechRecognition()
+  if (!recognition) return
+
+  try {
+    shouldStopRecording = false
+    isRecording.value = true
+    recognition.start()
+    console.log('[speech] 识别已启动, lang:', recognition.lang)
+  } catch (err) {
+    console.error('[speech] 启动失败:', err)
+    isRecording.value = false
     try {
-      shouldStopRecording = false
-      isRecording.value = true
-      recognition.start()
-      console.log('[speech] 识别已启动, lang:', recognition.lang)
-    } catch (err) {
-      console.error('启动语音识别失败:', err)
-      isRecording.value = false
-      // 如果是"already started"错误，尝试先abort再start
-      try {
-        recognition.abort()
-        recognition = initSpeechRecognition()
-        if (recognition) {
-          isRecording.value = true
-          recognition.start()
-        }
-      } catch (err2) {
-        alert('启动语音识别失败: ' + err2.message + '\n请直接在文本框输入回答')
+      recognition.abort()
+      recognition = initSpeechRecognition()
+      if (recognition) {
+        isRecording.value = true
+        recognition.start()
+        console.log('[speech] 重试启动成功')
       }
+    } catch (err2) {
+      alert('启动语音识别失败: ' + err2.message + '\n请直接在文本框输入回答')
     }
   }
 }
