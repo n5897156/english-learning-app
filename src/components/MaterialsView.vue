@@ -1610,17 +1610,16 @@ function speakQuestion() {
 function initSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
   if (!SpeechRecognition) {
-    alert('您的浏览器不支持语音识别。请使用 Chrome/Edge 浏览器，或直接使用文本输入框回答。')
     return null
   }
-  
+
   const rec = new SpeechRecognition()
   rec.lang = trainingMode.value === 'cn2en' ? 'en-US' : 'zh-CN'
-  rec.continuous = false
+  rec.continuous = true
   rec.interimResults = true
-  
+
   let finalText = ''
-  
+
   rec.onresult = (event) => {
     let interimText = ''
     for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -1631,24 +1630,37 @@ function initSpeechRecognition() {
         interimText += result[0].transcript
       }
     }
-    transcript.value = finalText + interimText
+    const fullText = (finalText + interimText).trim()
+    transcript.value = fullText
+    // 同步到文本输入框，让用户能看到并编辑识别结果
+    voiceTextInput.value = fullText
   }
-  
+
   rec.onerror = (event) => {
     console.error('语音识别错误:', event.error)
     isRecording.value = false
-    if (event.error === 'not-allowed') {
-      alert('请允许浏览器使用麦克风权限')
+    const errMsgs = {
+      'not-allowed': '麦克风权限被拒绝，请在浏览器设置中允许使用麦克风',
+      'no-speech': '没有检测到语音，请大声再说一次',
+      'network': '语音识别网络错误，请检查网络连接',
+      'aborted': '录音已取消',
+      'service-not-allowed': '语音服务不可用，请使用 Chrome/Edge 浏览器'
+    }
+    const msg = errMsgs[event.error] || `语音识别出错: ${event.error}`
+    if (event.error !== 'aborted') {
+      alert(msg)
     }
   }
-  
+
   rec.onend = () => {
     isRecording.value = false
-    if (finalText && !transcript.value) {
-      transcript.value = finalText
+    if (finalText) {
+      const text = finalText.trim()
+      transcript.value = text
+      voiceTextInput.value = text
     }
   }
-  
+
   return rec
 }
 
@@ -1660,17 +1672,35 @@ function toggleRecording() {
     }
     isRecording.value = false
   } else {
+    // 先清理上一次的识别实例
+    if (recognition) {
+      try { recognition.abort() } catch {}
+      recognition = null
+    }
     transcript.value = ''
+    voiceTextInput.value = ''
     recognition = initSpeechRecognition()
     if (!recognition) return
-    
+
     try {
       shouldStopRecording = false
       isRecording.value = true
       recognition.start()
+      console.log('[speech] 识别已启动, lang:', recognition.lang)
     } catch (err) {
       console.error('启动语音识别失败:', err)
       isRecording.value = false
+      // 如果是"already started"错误，尝试先abort再start
+      try {
+        recognition.abort()
+        recognition = initSpeechRecognition()
+        if (recognition) {
+          isRecording.value = true
+          recognition.start()
+        }
+      } catch (err2) {
+        alert('启动语音识别失败: ' + err2.message + '\n请直接在文本框输入回答')
+      }
     }
   }
 }
