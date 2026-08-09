@@ -413,8 +413,11 @@
                     @click="toggleRecording"
                     :disabled="isCheckingTraining"
                   >
-                    {{ isRecording ? '🔴 停止录音' : '🎤 开始回答' }}
+                    {{ isRecording ? '🔴 停止录音' : '🎤 语音回答' }}
                   </button>
+                </div>
+                <div v-if="speechRecognitionSupported && !isRecording" class="voice-hint">
+                  💡 语音识别需联网（国内需开VPN），也可直接在下方输入回答
                 </div>
 
                 <!-- 录音中的实时提示 -->
@@ -431,10 +434,11 @@
 
                 <div class="voice-input-area">
                   <textarea
+                    ref="voiceInputRef"
                     v-model="voiceTextInput"
-                    class="training-input"
-                    :placeholder="trainingMode === 'cn2en' ? '输入英文回答...' : '输入中文回答...'"
-                    rows="2"
+                    class="training-input voice-text-input"
+                    :placeholder="trainingMode === 'cn2en' ? '在此输入英文回答...' : '在此输入中文回答...'"
+                    rows="3"
                     :disabled="trainingResult"
                   ></textarea>
                 </div>
@@ -685,7 +689,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, nextTick } from 'vue'
 import AddMaterialModal from './AddMaterialModal.vue'
 import { analyzeArticle, generateComprehensionQuestions, recordExerciseResult, checkTranslationAnswer, generateClozeExercise } from '../ai.js'
 
@@ -746,6 +750,7 @@ const isSpeaking = ref(false)
 const isRecording = ref(false)
 const transcript = ref('')
 const voiceTextInput = ref('')
+const voiceInputRef = ref(null) // textarea DOM 引用，用于自动聚焦
 let recognition = null
 let shouldStopRecording = false
 
@@ -1644,14 +1649,27 @@ function initSpeechRecognition() {
     const errMsgs = {
       'not-allowed': '麦克风权限被拒绝，请在浏览器设置中允许使用麦克风',
       'no-speech': '没有检测到语音，请大声再说一次',
-      'network': '语音识别网络错误，请检查网络连接',
+      'network': '语音识别需要连接Google服务器，国内需开启VPN。\n或者直接在下方文本框输入回答即可。',
       'aborted': '录音已取消',
       'service-not-allowed': '语音服务不可用，请使用 Chrome/Edge 浏览器',
       'audio-capture': '无法捕获音频，请检查麦克风是否正常'
     }
     const msg = errMsgs[event.error] || `语音识别出错: ${event.error}`
     if (event.error !== 'aborted') {
-      alert(msg)
+      // 网络错误时用更友好的提示而不是alert
+      if (event.error === 'network') {
+        // 直接在输入框上方显示提示
+        transcript.value = '⚠️ 语音识别失败（需VPN联网）。请在下方直接输入回答。'
+        // 自动聚焦到文本输入框
+        nextTick(() => {
+          voiceInputRef.value?.focus()
+        })
+      } else {
+        alert(msg)
+        nextTick(() => {
+          voiceInputRef.value?.focus()
+        })
+      }
     }
   }
 
@@ -3130,6 +3148,21 @@ onUnmounted(() => {
   margin: 10px 0;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.voice-hint {
+  font-size: 12px;
+  color: #999;
+  margin: 6px 0;
+  padding: 0 4px;
+}
+
+.voice-text-input {
+  font-size: 16px !important;
+  border: 2px solid #74b9ff !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+  min-height: 60px;
 }
 
 .recording-indicator {
