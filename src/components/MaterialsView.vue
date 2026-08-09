@@ -714,7 +714,7 @@ const aiUserAnswers = ref({})
 const aiQuestionResults = ref({})
 
 // 句子训练状态
-const sentenceTraining = ref(null) // 存储提取的句子列表
+const sentenceTraining = ref([]) // 存储提取的句子列表
 const trainingMode = ref('') // browse | translate | dictation | cloze
 const trainingIdx = ref(0)
 const trainingAnswer = ref('')
@@ -778,7 +778,7 @@ function closeDetail() {
   isAnalyzing.value = false
   aiUserAnswers.value = {}
   aiQuestionResults.value = {}
-  sentenceTraining.value = null
+  sentenceTraining.value = []
   trainingMode.value = ''
   trainingIdx.value = 0
   trainingAnswer.value = ''
