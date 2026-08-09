@@ -750,11 +750,9 @@ const filteredMaterials = computed(() => {
 // 判断资料内容是否像"中英对照"结构
 const hasCnEnStructure = computed(() => {
   if (!selectedMaterial.value) return false
-  const c = selectedMaterial.value.content || ''
-  // 规则1: 存在 ## 数字序号. 中文 + 下一行是 **英文** 的模式（命中≥3次）
-  const hits = c.match(/^#{2,6}\s*\d+[\.、)]\s*.*[\u4e00-\u9fa5]+.*\n\s*\*\*.+\*\*/gm)
+  const c = normalizeContent(selectedMaterial.value.content || '')
+  const hits = c.match(/#{2,6}\s*\d+[\.、)]\s*[^\n]*[\u4e00-\u9fa5]+[^\n]*\n\s*\*\*[^\n*]+\*\*/g)
   if (hits && hits.length >= 3) return true
-  // 规则2: 直接提取 sentenceTraining 已解析出 ≥3 句也算
   if (sentenceTraining.value && sentenceTraining.value.length >= 3) return true
   return false
 })
@@ -838,59 +836,14 @@ async function runAiAnalysis() {
 
 // ========== 本地离线 AI 分析构建（完全无需联网） ==========
 async function buildLocalAnalysisFromSentences(title, content) {
-  // 先尝试解析句子
-  let sentences = []
-  const lines = (content || '').split('\n')
+  const normalized = normalizeContent(content || '')
+  const extracted = extractSentencesUniversal(normalized)
 
-  const pushSentence = (zh, en) => {
-    zh = (zh || '').trim()
-    en = (en || '').trim()
-    if (!zh || !en) return
-    if (/[\u4e00-\u9fa5]/.test(en)) return
-    if (sentences.some(s => s.chinese === zh && s.english === en)) return
-    sentences.push({ chinese: zh, english: en })
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    const m = line.match(/^#{2,6}\s*\d+[\.、)]\s*(.+)$/)
-    if (m) {
-      const zh = m[1].trim()
-      const next = lines[i + 1]?.trim() || ''
-      const enMatch = next.match(/^\*\*(.+)\*\*$/)
-      if (enMatch) {
-        pushSentence(zh, enMatch[1])
-        i++
-        continue
-      }
-    }
-    const m2 = line.match(/^#{2,6}\s*(.+)$/)
-    if (m2) {
-      const zh = m2[1].replace(/^\d+[\.、)]\s*/, '').trim()
-      const next = lines[i + 1]?.trim() || ''
-      const enMatch = next.match(/^\*\*(.+)\*\*$/)
-      if (enMatch) {
-        pushSentence(zh, enMatch[1])
-        i++
-      }
-    }
-  }
-
-  // 兜底：按行成对解析
-  if (sentences.length === 0) {
-    const clean = lines.map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-    for (let i = 0; i < clean.length - 1; i += 2) {
-      let zh = clean[i].replace(/^\d+[\.、)]\s*/, '').trim()
-      let en = clean[i + 1].replace(/^\d+[\.、)]\s*/, '').trim()
-      if (/[\u4e00-\u9fa5]/.test(zh) && !/[\u4e00-\u9fa5]/.test(en)) {
-        pushSentence(zh, en)
-      }
-    }
-  }
-
-  if (sentences.length === 0) {
+  if (extracted.length === 0) {
     throw new Error('未识别到有效中英对照句子，请检查资料格式：英文行应为 **句子** 样式')
   }
+
+  const sentences = extracted.map(s => ({ chinese: s.chinese, english: s.english }))
 
   // 同步写入 sentenceTraining
   sentenceTraining.value = sentences.map((s, i) => ({
@@ -1407,97 +1360,61 @@ function selectClozeOption(idx) {
 }
 
 // ========== 句子提取（从 markdown 内容直接提取） ==========
+function normalizeContent(raw) {
+  if (!raw) return ''
+  let c = String(raw)
+  c = c.replace(/\\n/g, '\n')
+  c = c.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  return c
+}
+
+function extractSentencesUniversal(content) {
+  const extracted = []
+  const re = /#{2,6}\s*\d+[\.、)]\s*([^\n]+)\s*\n\s*\*\*([^\n*]+)\*\*/g
+  let m
+  while ((m = re.exec(content)) !== null) {
+    const zh = m[1].trim()
+    const en = m[2].trim()
+    if (!zh || !en) continue
+    if (/[\u4e00-\u9fa5]/.test(en)) continue
+    if (extracted.some(s => s.chinese === zh && s.english === en)) continue
+    extracted.push({ id: extracted.length + 1, chinese: zh, english: en, keyWords: [], note: '' })
+  }
+  if (extracted.length === 0) {
+    const re2 = /#{2,6}\s*([^\n]+)\s*\n\s*\*\*([^\n*]+)\*\*/g
+    while ((m = re2.exec(content)) !== null) {
+      const zh = m[1].replace(/^\d+[\.、)]\s*/, '').trim()
+      const en = m[2].trim()
+      if (!zh || !en) continue
+      if (/[\u4e00-\u9fa5]/.test(en)) continue
+      if (!/[\u4e00-\u9fa5]/.test(zh)) continue
+      if (extracted.some(s => s.chinese === zh && s.english === en)) continue
+      extracted.push({ id: extracted.length + 1, chinese: zh, english: en, keyWords: [], note: '' })
+    }
+  }
+  if (extracted.length === 0) {
+    const lines = content.split('\n').map(l => l.trim()).filter(l => l)
+    for (let i = 0; i < lines.length - 1; i += 2) {
+      let zh = lines[i].replace(/^\d+[\.、)]\s*/, '').trim()
+      let en = lines[i + 1].replace(/^\d+[\.、)]\s*/, '').trim()
+      en = en.replace(/^\*\*(.+)\*\*$/, '$1').trim()
+      if (!zh || !en) continue
+      if (/[\u4e00-\u9fa5]/.test(zh) && !/[\u4e00-\u9fa5]/.test(en)) {
+        extracted.push({ id: extracted.length + 1, chinese: zh, english: en, keyWords: [], note: '' })
+      }
+    }
+  }
+  return extracted
+}
+
 function extractSentencesFromContent() {
   if (!selectedMaterial.value) return
-  const content = selectedMaterial.value.content
-  const lines = content.split('\n')
-  const extracted = []
-  let currentZh = null
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    // 严格匹配 ## 1. xxx 或 ### 1. xxx 格式的条目（必须有数字序号的子标题）
-    const zhMatch = line.match(/^#{2,6}\s*\d+[\.、)]\s*(.+)$/)
-    if (zhMatch) {
-      currentZh = zhMatch[1].trim()
-      // 检查下一行是否是 **英文**
-      const nextLine = lines[i + 1]?.trim() || ''
-      const enMatch = nextLine.match(/^\*\*(.+)\*\*$/)
-      if (enMatch) {
-        const en = enMatch[1].trim()
-        if (currentZh && en) {
-          // 过滤掉中英文混淆的脏数据（英文中不应包含中文核心字）
-          const hasChinese = /[\u4e00-\u9fa5]/.test(en)
-          if (!hasChinese) {
-            extracted.push({
-              id: extracted.length + 1,
-              chinese: currentZh,
-              english: en,
-              keyWords: [],
-              note: ''
-            })
-          }
-        }
-        currentZh = null
-        i++ // skip the english line
-      }
-    }
-  }
-
-  // 若严格匹配没到足够的数量，再尝试宽松匹配：## xxx 后紧跟 **English**
-  if (extracted.length < 5) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim()
-      const zhMatch2 = line.match(/^#{2,6}\s*(.+)$/)
-      if (zhMatch2) {
-        const zh = zhMatch2[1].replace(/^\d+[\.、)]\s*/, '').trim()
-        const nextLine = lines[i + 1]?.trim() || ''
-        const enMatch = nextLine.match(/^\*\*(.+)\*\*$/)
-        if (enMatch && zh && enMatch[1].trim()) {
-          const en = enMatch[1].trim()
-          const already = extracted.some(s => s.chinese === zh && s.english === en)
-          const hasChinese = /[\u4e00-\u9fa5]/.test(en)
-          if (!already && !hasChinese) {
-            extracted.push({
-              id: extracted.length + 1,
-              chinese: zh,
-              english: en,
-              keyWords: [],
-              note: ''
-            })
-          }
-          i++
-        }
-      }
-    }
-  }
-
-  // 最后兜底：非 # 开头的中英文交替行
-  if (extracted.length === 0) {
-    const cleanLines = lines.map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-    for (let i = 0; i < cleanLines.length - 1; i += 2) {
-      let zh = cleanLines[i]
-      let en = cleanLines[i + 1]
-      if (!zh || !en) continue
-      // 去掉行首序号
-      zh = zh.replace(/^\d+[\.、)]\s*/, '').trim()
-      en = en.replace(/^\d+[\.、)]\s*/, '').trim()
-      const hasChineseZh = /[\u4e00-\u9fa5]/.test(zh)
-      const hasChineseEn = /[\u4e00-\u9fa5]/.test(en)
-      if (hasChineseZh && !hasChineseEn) {
-        extracted.push({
-          id: extracted.length + 1,
-          chinese: zh,
-          english: en,
-          keyWords: [],
-          note: ''
-        })
-      }
-    }
-  }
+  const content = normalizeContent(selectedMaterial.value.content)
+  const extracted = extractSentencesUniversal(content)
 
   if (extracted.length === 0) {
-    alert('未能从内容中提取到句子结构，请先使用 AI 分析功能')
+    console.log('[extract] content preview:', content.slice(0, 300))
+    alert('未能从内容中提取到句子结构。\n请确认资料格式为：## 序号. 中文换行后 **英文**\n\n如问题持续，请删除该资料后重新导入 JSON 文件。')
     return
   }
 
